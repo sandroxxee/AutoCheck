@@ -1,0 +1,276 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #F4F8FC;
+    --bg-sec: rgba(255, 255, 255, 0.9);
+    --bg-card: rgba(255, 255, 255, 0.82);
+    --border-subtle: rgba(186, 215, 248, 0.7);
+    --green-safe: #15803D;
+    --green-sec: #166534;
+    --amber-warn: #B45309;
+    --red-alert: #B91C1C;
+    --text-main: #0B132B;
+    --text-sec: #334155;
+    --blue-accent: #1D4ED8;
+  }
+
+  body {
+    background: radial-gradient(circle at 50% 0%, #FFFFFF 0%, #F0F6FF 45%, #E1EFFE 100%);
+    background-attachment: fixed;
+    color: #0B132B;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue", "Segoe UI", Roboto, sans-serif;
+    letter-spacing: -0.015em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    color-scheme: light;
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar with glass-ice look */
+  ::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(224, 238, 255, 0.6);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #93C5FD 0%, #60A5FA 100%);
+    border-radius: 9999px;
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%);
+  }
+}
+
+/* =========================================================================
+   Realistic 3D Elevation & Glassmorphism System (Apple iOS / macOS Inspired)
+   ========================================================================= */
+
+/* Frosted glass main panels with 3D bevel and diffuse ambient shadow */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 10px 30px -5px rgba(15, 23, 42, 0.06),
+    0 4px 12px -2px rgba(37, 99, 235, 0.03),
+    0 0 0 1px rgba(191, 219, 254, 0.5),
+    0 1px 0 rgba(255, 255, 255, 1) inset;
+}
+
+/* Glass cards with tactile depth */
+.glass-card {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 6px 16px -4px rgba(15, 23, 42, 0.05),
+    0 2px 6px -1px rgba(37, 99, 235, 0.02),
+    0 0 0 1px rgba(219, 234, 254, 0.6),
+    0 1px 0 rgba(255, 255, 255, 1) inset;
+}
+
+.glass-subtle {
+  background: rgba(241, 247, 255, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(191, 219, 254, 0.65);
+  box-shadow:
+    0 2px 8px -2px rgba(15, 23, 42, 0.03),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(191, 219, 254, 0.75);
+  box-shadow:
+    0 2px 8px -2px rgba(37, 99, 235, 0.06),
+    0 1px 0 rgba(255, 255, 255, 1) inset;
+}
+
+/* 3D Realistic Icon Badges */
+.icon-3d-blue {
+  background: linear-gradient(145deg, #3B82F6 0%, #1D4ED8 100%);
+  box-shadow:
+    0 6px 16px -2px rgba(29, 78, 216, 0.45),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 1px 1px rgba(255, 255, 255, 0.4) inset,
+    0 -1px 2px rgba(0, 0, 0, 0.25) inset;
+}
+
+.icon-3d-green {
+  background: linear-gradient(145deg, #22C55E 0%, #15803D 100%);
+  box-shadow:
+    0 6px 16px -2px rgba(21, 128, 61, 0.42),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 1px 1px rgba(255, 255, 255, 0.45) inset,
+    0 -1px 2px rgba(0, 0, 0, 0.25) inset;
+}
+
+.icon-3d-amber {
+  background: linear-gradient(145deg, #F59E0B 0%, #D97706 100%);
+  box-shadow:
+    0 6px 16px -2px rgba(217, 119, 6, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 1px 1px rgba(255, 255, 255, 0.45) inset,
+    0 -1px 2px rgba(0, 0, 0, 0.25) inset;
+}
+
+.icon-3d-purple {
+  background: linear-gradient(145deg, #A855F7 0%, #7E22CE 100%);
+  box-shadow:
+    0 6px 16px -2px rgba(126, 34, 206, 0.42),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 1px 1px rgba(255, 255, 255, 0.45) inset,
+    0 -1px 2px rgba(0, 0, 0, 0.25) inset;
+}
+
+.icon-3d-red {
+  background: linear-gradient(145deg, #EF4444 0%, #B91C1C 100%);
+  box-shadow:
+    0 6px 16px -2px rgba(185, 28, 28, 0.45),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 1px 1px rgba(255, 255, 255, 0.45) inset,
+    0 -1px 2px rgba(0, 0, 0, 0.25) inset;
+}
+
+.icon-3d-silver {
+  background: linear-gradient(145deg, #FFFFFF 0%, #E2E8F0 100%);
+  box-shadow:
+    0 6px 14px -2px rgba(15, 23, 42, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 1.5px 1px rgba(255, 255, 255, 1) inset,
+    0 -1px 1px rgba(148, 163, 184, 0.4) inset;
+}
+
+/* 3D Realistic Button Elevation */
+.btn-3d-primary {
+  background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  box-shadow:
+    0 8px 24px -4px rgba(29, 78, 216, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 -2px 0 rgba(15, 23, 42, 0.25) inset;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-3d-primary:hover {
+  background: linear-gradient(180deg, #3B82F6 0%, #2563EB 100%);
+  box-shadow:
+    0 12px 30px -4px rgba(29, 78, 216, 0.55),
+    0 4px 10px rgba(0, 0, 0, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 -2px 0 rgba(15, 23, 42, 0.25) inset;
+  transform: translateY(-1px);
+}
+.btn-3d-primary:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 3px 10px rgba(29, 78, 216, 0.35),
+    0 1px 0 rgba(0, 0, 0, 0.2) inset;
+}
+
+/* 3D Stamped Automotive Plate Elevation & Metallic Mercosul Styling */
+.plate-3d-shadow {
+  box-shadow:
+    0 25px 50px -12px rgba(15, 23, 42, 0.28),
+    0 10px 25px -5px rgba(37, 99, 235, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.95),
+    0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.font-fe-schrift {
+  font-family: 'FE-Schrift', 'FE Mittelschrift', 'DIN 1451 Mittelschrift', 'DIN 1451', 'JetBrains Mono', monospace;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0.22em;
+}
+
+.plate-metallic-surface {
+  background: linear-gradient(175deg, #FFFFFF 0%, #F1F5F9 20%, #E2E8F0 48%, #CBD5E1 52%, #E2E8F0 76%, #FFFFFF 100%);
+  background-size: cover;
+}
+
+.plate-stamped-text {
+  font-family: 'FE-Schrift', 'FE Mittelschrift', 'DIN 1451', 'JetBrains Mono', monospace;
+  text-shadow: 
+    1px 1px 0px rgba(255, 255, 255, 0.95),
+    -1px -1px 0px rgba(0, 0, 0, 0.8),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.6) 25%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.6) 75%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 1.8s infinite;
+  content: '';
+}
+
+/* Print Styles */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 10mm 10mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0b132b !important;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  header, nav, footer, #navbar, #footer, #report-download-pdf-btn, #report-share-btn, #report-print-btn, #report-json-btn, #android-16-bottom-nav {
+    display: none !important;
+  }
+
+  .glass-panel, .glass-card, .rounded-3xl, .rounded-2xl, .rounded-xl {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0b132b !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 12px !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #0b132b !important;
+  }
+}

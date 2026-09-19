@@ -1,0 +1,8 @@
+{
+  "name": "AutoCheck Brasil",
+  "description": "Plataforma de consulta e inteligência veicular por placa no Brasil. Histórico veicular, roubo e furto, gravame, leilão e restrições.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

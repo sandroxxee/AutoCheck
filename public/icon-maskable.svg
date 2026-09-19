@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="50%" stop-color="#07111F" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="shieldGradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60A5FA" />
+      <stop offset="50%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="accentGradMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed background for maskable safe-zone clipping -->
+  <rect width="512" height="512" fill="url(#bgGradMask)" />
+
+  <!-- Centered safe zone content (within 80% boundary) -->
+  <g transform="translate(0, 5) scale(0.9) transform-origin(256 256)">
+    <!-- Shield -->
+    <path d="M256 100 L370 145 C370 250 256 335 256 335 C256 335 142 250 142 145 Z" fill="url(#shieldGradMask)" />
+    <path d="M256 105 L362 148 C362 240 256 322 256 322 C256 322 150 240 150 148 Z" fill="none" stroke="#93C5FD" stroke-width="3" stroke-opacity="0.6" />
+
+    <!-- Car Symbol inside Shield -->
+    <g fill="#FFFFFF">
+      <path d="M200 230 C200 220 208 212 218 212 L294 212 C304 212 312 220 312 230 L320 255 C326 257 330 262 330 268 L330 290 C330 294 326 298 322 298 L318 298 L318 308 C318 313 313 317 308 317 L298 317 C293 317 289 313 289 308 L289 298 L223 298 L223 308 C223 313 219 317 214 317 L204 317 C199 317 195 313 195 308 L195 298 L190 298 C185 298 182 294 182 290 L182 268 C182 262 186 257 192 255 Z" />
+      <path d="M214 225 L298 225 L306 250 L206 250 Z" fill="#1D4ED8" />
+      <circle cx="204" cy="275" r="7" fill="#FBBF24" />
+      <circle cx="308" cy="275" r="7" fill="#FBBF24" />
+    </g>
+
+    <!-- Verification Badge -->
+    <circle cx="350" cy="150" r="28" fill="#07111F" stroke="#22C55E" stroke-width="4" />
+    <circle cx="350" cy="150" r="22" fill="url(#accentGradMask)" />
+    <path d="M340 150 L347 157 L362 142" fill="none" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Typography -->
+    <text x="256" y="385" text-anchor="middle" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="800" font-size="30" fill="#F8FAFC" letter-spacing="2">AUTOCHECK</text>
+    <text x="256" y="415" text-anchor="middle" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="700" font-size="16" fill="#3B82F6" letter-spacing="5">BRASIL</text>
+  </g>
+</svg>

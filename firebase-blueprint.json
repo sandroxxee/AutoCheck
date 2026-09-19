@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with credits, plan, and loyalty rewards.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "name": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "company": { "type": "string", "maxLength": 128 },
+        "document": { "type": "string", "maxLength": 32 },
+        "credits": { "type": "number" },
+        "paidQueriesCount": { "type": "number" },
+        "loyaltyQueriesCount": { "type": "number" },
+        "loyaltyRewardsEarned": { "type": "number" },
+        "loyaltyRewardsClaimed": { "type": "number" },
+        "role": { "type": "string", "enum": ["user", "admin", "partner"] },
+        "plan": { "type": "string", "enum": ["free", "complete", "pro"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "name", "credits", "role", "plan", "createdAt"]
+    },
+    "VehicleReport": {
+      "title": "VehicleReport",
+      "description": "Consolidated automotive inspection and intelligence report.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "plate": { "type": "string", "maxLength": 16 },
+        "plateFormatted": { "type": "string", "maxLength": 16 },
+        "plateType": { "type": "string", "enum": ["mercosul", "antiga", "invalida"] },
+        "queryType": { "type": "string", "enum": ["basic", "complete", "professional"] },
+        "status": { "type": "string", "enum": ["CONCLUIDA", "PARCIAL", "ERRO", "NAO_ENCONTRADO"] },
+        "score": { "type": "number" },
+        "riskLevel": { "type": "string", "enum": ["baixo", "medio", "alto", "critico"] },
+        "isDemo": { "type": "boolean" },
+        "cost": { "type": "number" },
+        "durationMs": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "plate", "plateFormatted", "plateType", "queryType", "status", "score", "riskLevel", "createdAt"]
+    },
+    "CreditTransaction": {
+      "title": "CreditTransaction",
+      "description": "Financial and loyalty credit transactions for vehicle queries.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["credit", "debit", "loyalty_reward"] },
+        "description": { "type": "string", "maxLength": 256 },
+        "priceBrl": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["completed", "pending", "failed"] },
+        "plate": { "type": "string", "maxLength": 16 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "amount", "type", "description", "status", "timestamp"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "User support inquiries and inquiries regarding vehicle reports.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "subject": { "type": "string", "maxLength": 256 },
+        "category": { "type": "string", "enum": ["duvida_laudo", "financeiro", "b2b_api", "parceria", "outro"] },
+        "message": { "type": "string", "maxLength": 2000 },
+        "plateRelated": { "type": "string", "maxLength": 16 },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "subject", "category", "message", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile with credits and settings"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/VehicleReport" },
+      "description": "Consolidated automotive inspection reports"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/CreditTransaction" },
+      "description": "Audit trail of credit expenditures, purchases and loyalty rewards"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "Customer contact and support requests"
+    }
+  }
+}
