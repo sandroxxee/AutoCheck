@@ -12,39 +12,45 @@ dotenv.config({ path: '.env.example' });
 // Inicializa o Sentry para rastreamento silencioso de erros e performance
 initServerSentry();
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  // Global middlewares
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+// Global middlewares
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  // Global CORS and security headers (allowing iframe rendering for AI Studio preview)
-  app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (req.method === 'OPTIONS') {
-      res.sendStatus(204);
-      return;
-    }
-    next();
+// Global CORS and security headers (allowing iframe rendering for AI Studio preview)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
+// Health check endpoint
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'AutoCheck Brasil API',
+    timestamp: new Date().toISOString(),
+    demoMode: process.env.DEMO_MODE === 'true'
   });
+});
 
-  // Health check endpoint
-  app.get('/api/health', (_req, res) => {
-    res.json({
-      status: 'ok',
-      service: 'AutoCheck Brasil API',
-      timestamp: new Date().toISOString(),
-      demoMode: process.env.DEMO_MODE === 'true'
-    });
-  });
+// Mount API router FIRST
+app.use('/api', apiRouter);
 
-  // Mount API router FIRST
-  app.use('/api', apiRouter);
+// Set up server listener and Vite/static serving
+async function initializeApp() {
+  // If running on Vercel as a serverless function, we do not need to boot Vite or listen
+  if (process.env.VERCEL === '1') {
+    return;
+  }
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
@@ -70,6 +76,8 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
+initializeApp().catch(err => {
   console.error('Falha ao inicializar servidor AutoCheck:', err);
 });
+
+export default app;
