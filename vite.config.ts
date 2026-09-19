@@ -127,6 +127,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.')
     }
   },
+  build: {
+    chunkSizeWarningLimit: 2000
+  },
   server: {
     cors: true,
     allowedHosts: true,
