@@ -1,18 +1,43 @@
 import { ConsolidatedReport, PlanPricing, CreditPackage, ProviderConfig, QueryStats, UserAccount, CreditTransaction, SupportTicket, VehicleFreePreview } from '../types/index.ts';
 import { getCachedReport, setCachedReport, removeCachedReport } from './reportCache.ts';
 
+// Helper robusto para tratamento de erros e exibição de respostas inteiras do servidor (HTML/Logs)
+async function safeRequest(url: string, options: RequestInit): Promise<any> {
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (netErr: any) {
+    throw new Error(`Falha de conexão com o servidor. Verifique sua internet.\nErro: ${netErr.message}`);
+  }
+
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text);
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Erro do Servidor (Status ${res.status})`);
+    }
+    return data;
+  } catch (err) {
+    // Caso o servidor retorne um erro em HTML (ex: Vercel, Node crash dump), extraímos o texto útil legível
+    const cleanText = text
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // remove estilos css
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // remove scripts js
+      .replace(/<[^>]*>/g, ' ') // remove tags HTML
+      .replace(/\s+/g, ' ') // remove espaços extras
+      .trim();
+    
+    throw new Error(`[Erro ${res.status} da Vercel/Servidor]: ${cleanText || text}`);
+  }
+}
+
 export const api = {
   // --- Auth & Session ---
   async syncOAuthUser(payload: { uid: string; email: string; name?: string; phone?: string }): Promise<{ success: boolean; user: UserAccount; token: string; message: string }> {
-    const res = await fetch('/api/auth/oauth-sync', {
+    const data = await safeRequest('/api/auth/oauth-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Falha ao sincronizar conta OAuth.');
-    }
     if (data.user?.id) {
       localStorage.setItem('autocheck_user_id', data.user.id);
       localStorage.setItem('autocheck_user_email', data.user.email);
@@ -21,15 +46,11 @@ export const api = {
   },
 
   async register(payload: { name: string; email: string; password: string; phone?: string; document?: string; company?: string }): Promise<{ success: boolean; user: UserAccount; token: string; message: string }> {
-    const res = await fetch('/api/auth/register', {
+    const data = await safeRequest('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Falha ao cadastrar usuário.');
-    }
     if (data.user?.id) {
       localStorage.setItem('autocheck_user_id', data.user.id);
       localStorage.setItem('autocheck_user_email', data.user.email);
@@ -38,15 +59,11 @@ export const api = {
   },
 
   async login(payload: { email: string; password: string }): Promise<{ success: boolean; user: UserAccount; token: string; message: string }> {
-    const res = await fetch('/api/auth/login', {
+    const data = await safeRequest('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Falha ao realizar login.');
-    }
     if (data.user?.id) {
       localStorage.setItem('autocheck_user_id', data.user.id);
       localStorage.setItem('autocheck_user_email', data.user.email);
@@ -55,29 +72,19 @@ export const api = {
   },
 
   async forgotPassword(email: string): Promise<{ success: boolean; message: string; demoCode?: string }> {
-    const res = await fetch('/api/auth/forgot-password', {
+    return safeRequest('/api/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Falha ao solicitar recuperação de senha.');
-    }
-    return data;
   },
 
   async resetPassword(payload: { email: string; code: string; newPassword: string }): Promise<{ success: boolean; message: string }> {
-    const res = await fetch('/api/auth/reset-password', {
+    return safeRequest('/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Falha ao redefinir senha.');
-    }
-    return data;
   },
 
   async updateProfile(payload: { name?: string; phone?: string; document?: string; company?: string }): Promise<{ success: boolean; message: string; user: UserAccount }> {
