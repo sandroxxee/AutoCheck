@@ -96,7 +96,7 @@ export const HomeOnboardingTooltip: React.FC<HomeOnboardingTooltipProps> = ({
               </h4>
 
               <p className="text-xs text-blue-100/90 leading-relaxed font-medium max-w-lg">
-                Digite a placa no formato <strong>Mercosul (ex: BRA2E19)</strong> ou <strong>antiga (ABC1234)</strong> para obter histórico de leilão, multas, débitos, sinistros e laudo completo.
+                Digite a placa no formato <strong>Mercosul (ex: BRA2E19)</strong> ou <strong>antiga (ABC1234)</strong> para obter histórico de leilão, multas, débitos, sinistros e consulta completa.
               </p>
 
               {/* Action Buttons inside Tooltip */}

@@ -224,7 +224,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </h2>
 
             <p className="text-xs text-slate-600 mt-1 font-medium">
-              {mode === 'login' && 'Acesse seus laudos, saldo de créditos e histórico de consultas.'}
+              {mode === 'login' && 'Acesse suas consultas, saldo de créditos e histórico de placas.'}
               {mode === 'register' && 'Acesso rápido com Google ou cadastro de e-mail.'}
               {mode === 'forgot' && 'Digite seu e-mail para receber as instruções de recuperação.'}
               {mode === 'reset' && 'Insira o código de segurança e defina sua nova senha.'}
@@ -364,20 +364,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     Cadastre-se grátis
                   </button>
                 </p>
-
-                {/* Quick Master Admin Helper */}
-                <div className="pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('sandrooxxee@gmail.com');
-                      setPassword('admin123');
-                    }}
-                    className="text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                  >
-                    Preencher acesso de Administrador (sandrooxxee@gmail.com)
-                  </button>
-                </div>
               </div>
             </form>
           )}

@@ -6,24 +6,30 @@ import {
   Loader2,
   Lock,
   Sparkles,
-  X
+  X,
+  Coins
 } from 'lucide-react';
-import { validateAndNormalizePlate } from '../../shared/schemas/vehicle.ts';
+import { validateAndNormalizePlate, isDemoTestPlate } from '../../shared/schemas/vehicle.ts';
 import { triggerHaptic } from '../utils/haptics.ts';
 import { BrazilFlagSvg, MercosulLogoSvg } from './MercosulPlate.tsx';
+import { UserAccount } from '../types/index.ts';
 
 interface PlateInputProps {
   onSearch: (plate: string, queryType?: 'basic' | 'complete') => void;
   isLoading?: boolean;
   initialValue?: string;
   defaultQueryType?: 'basic' | 'complete';
+  user?: UserAccount | null;
+  onOpenCreditModal?: () => void;
 }
 
 const PlateInputComponent: React.FC<PlateInputProps> = ({
   onSearch,
   isLoading = false,
   initialValue = '',
-  defaultQueryType = 'complete'
+  defaultQueryType = 'complete',
+  user = null,
+  onOpenCreditModal
 }) => {
   const [inputVal, setInputVal] = useState(initialValue);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -43,6 +49,19 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
     e.preventDefault();
     if (isLoading) return;
 
+    // Rate limiting check using localStorage timestamps (3 second interval)
+    const lastSearchTimeKey = 'autocheck_last_search_timestamp';
+    const lastSearchTime = Number(localStorage.getItem(lastSearchTimeKey) || '0');
+    const now = Date.now();
+    const cooldownMs = 3000;
+
+    if (now - lastSearchTime < cooldownMs) {
+      const remainingSec = Math.ceil((cooldownMs - (now - lastSearchTime)) / 1000);
+      triggerHaptic('warning');
+      setErrorMsg(`Aguarde ${remainingSec}s antes de realizar nova consulta.`);
+      return;
+    }
+
     if (!cleanChars) {
       triggerHaptic('warning');
       setErrorMsg('Por favor, digite a placa do veículo.');
@@ -55,10 +74,22 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
       return;
     }
 
+    // Save current timestamp for rate limiting cooldown
+    localStorage.setItem(lastSearchTimeKey, String(now));
+
+    // Check credits if logged in and not admin (Demo plates are always free for development and testing)
+    const isDemo = isDemoTestPlate(validation.cleanPlate);
+    if (!isDemo && user && user.role !== 'admin' && (user.credits ?? 0) < 1) {
+      triggerHaptic('warning');
+      setErrorMsg(`Saldo zerado (0 créditos). Recarregue seus créditos para consultar o histórico da placa ${validation.cleanPlate}.`);
+      onSearch(validation.cleanPlate, selectedType);
+      return;
+    }
+
     triggerHaptic('medium');
     setErrorMsg(null);
     onSearch(validation.cleanPlate, selectedType);
-  }, [isLoading, cleanChars, validation, onSearch, selectedType]);
+  }, [isLoading, cleanChars, validation, onSearch, selectedType, user]);
 
   const handleClear = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -76,6 +107,70 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
   return (
     <div className="w-full max-w-xl mx-auto">
       <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
+        {/* Logged in User Credits Status Bar - Always Visible */}
+        {user && (
+          <div
+            id="plate-input-credits-badge"
+            className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 shadow-xs ${
+              (user.credits ?? 0) > 0
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-950'
+                : 'bg-amber-500/10 border-amber-500/40 text-amber-950'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  (user.credits ?? 0) > 0 ? 'icon-3d-green text-white' : 'icon-3d-amber text-white'
+                }`}
+              >
+                <Coins className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-600">
+                    Conta: <strong className="text-slate-900">{user.name?.split(' ')[0] || 'Usuário'}</strong>
+                  </span>
+                  <span className="text-slate-400">•</span>
+                  <span className="inline-flex items-center gap-1 font-extrabold text-xs sm:text-sm">
+                    {(user.credits ?? 0) > 0 ? (
+                      <span className="text-emerald-700 font-black">
+                        {user.credits} {user.credits === 1 ? 'crédito disponível' : 'créditos disponíveis'}
+                      </span>
+                    ) : (
+                      <span className="text-rose-600 font-black">
+                        0 créditos disponíveis
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium block">
+                  {(user.credits ?? 0) > 0
+                    ? 'Esta consulta consumirá 1 crédito do seu saldo para consultar o histórico completo.'
+                    : 'Atenção: Saldo zerado. Recarregue para desbloquear consultas completas.'}
+                </span>
+              </div>
+            </div>
+
+            {onOpenCreditModal && (
+              <button
+                type="button"
+                id="plate-input-recharge-btn"
+                onClick={() => {
+                  triggerHaptic('selection');
+                  onOpenCreditModal();
+                }}
+                className={`px-3.5 py-2 rounded-xl font-black text-xs transition-all shrink-0 cursor-pointer shadow-xs ${
+                  (user.credits ?? 0) > 0
+                    ? 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-200'
+                    : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white shadow-amber-600/20'
+                }`}
+              >
+                {(user.credits ?? 0) > 0 ? '+ Adicionar' : 'Recarregar'}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Real Brazilian Plate Frame on sleek card backing with realistic 3D elevation */}
         <div
           onClick={() => inputRef.current?.focus()}
@@ -272,7 +367,7 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
               <div className="w-6 h-6 rounded-lg icon-3d-blue flex items-center justify-center text-white border border-white/40">
                 <ShieldCheck className="w-3.5 h-3.5" />
               </div>
-              <span className="tracking-tight">Emitir Laudo do Veículo</span>
+              <span className="tracking-tight">Consultar Histórico do Veículo</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </>
           )}

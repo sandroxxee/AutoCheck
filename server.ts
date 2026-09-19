@@ -3,10 +3,14 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/api/routes.ts';
+import { initServerSentry } from './server/services/sentry.ts';
 
 // Load .env first, then fallback to .env.example for environment configuration
 dotenv.config();
 dotenv.config({ path: '.env.example' });
+
+// Inicializa o Sentry para rastreamento silencioso de erros e performance
+initServerSentry();
 
 async function startServer() {
   const app = express();
@@ -45,7 +49,11 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        cors: true
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

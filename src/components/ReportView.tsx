@@ -27,7 +27,10 @@ import {
   X,
   Send,
   Copy,
-  Check
+  Check,
+  Fuel,
+  Gauge,
+  Zap
 } from 'lucide-react';
 import { VehicleReport, UserAccount } from '../types/index.ts';
 import { generateVehiclePdf } from '../services/pdfGenerator.ts';
@@ -43,6 +46,7 @@ interface ReportViewProps {
   onUpgrade?: () => void;
   onOpenCreditModal?: () => void;
   onNewSearch: () => void;
+  onRefreshReport?: (plate: string) => void;
 }
 
 const ReportViewComponent: React.FC<ReportViewProps> = ({
@@ -52,7 +56,8 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
   user,
   onUpgrade,
   onOpenCreditModal,
-  onNewSearch
+  onNewSearch,
+  onRefreshReport
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'cadastral' | 'security' | 'financial' | 'legal' | 'market'>('overview');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -75,7 +80,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
       setIsGeneratingPdf(true);
       await generateVehiclePdf(report, user);
     } catch (err) {
-      console.error('Falha ao gerar PDF do laudo:', err);
+      console.error('Falha ao gerar PDF da consulta:', err);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -99,9 +104,13 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
       removeCachedReport(report.plate);
       setCacheRefreshed(true);
       setTimeout(() => setCacheRefreshed(false), 3000);
-      onNewSearch();
+      if (onRefreshReport) {
+        onRefreshReport(report.plate);
+      } else {
+        onNewSearch();
+      }
     }
-  }, [report, onNewSearch]);
+  }, [report, onRefreshReport, onNewSearch]);
 
   // Risk calculation helpers
   const riskBadge = useMemo(() => {
@@ -143,9 +152,9 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
           <Car className="w-8 h-8" />
         </div>
         <div className="space-y-1.5">
-          <h2 className="text-xl font-bold text-slate-900">Nenhum laudo selecionado</h2>
+          <h2 className="text-xl font-bold text-slate-900">Nenhum relatório selecionado</h2>
           <p className="text-xs text-slate-500">
-            Digite uma placa na página inicial para consultar e emitir o relatório pericial oficial.
+            Digite uma placa na página inicial para consultar e emitir o histórico veicular consolidado.
           </p>
         </div>
         <button
@@ -168,26 +177,20 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
               onClick={onNewSearch}
               className="hover:text-blue-600 transition-colors font-medium flex items-center gap-1 cursor-pointer"
             >
-              <span>Início</span>
+              <span>← Nova Consulta</span>
             </button>
             <ChevronRight className="w-3 h-3 text-slate-400" />
-            <span>Laudo Pericial Oficial</span>
-            <ChevronRight className="w-3 h-3 text-slate-400" />
             <span className="font-mono text-blue-800 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-              {report.plateFormatted || report.plate}
+              Placa {report.plateFormatted || report.plate}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              Laudo Veicular Consolidado
+              Relatório de Histórico Veicular
             </h1>
-            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border uppercase tracking-wider ${
-              isComplete
-                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                : 'bg-slate-100 text-slate-700 border-slate-200'
-            }`}>
-              {isComplete ? 'Laudo Completo' : 'Consulta Básica'}
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border uppercase tracking-wider bg-emerald-50 text-emerald-700 border-emerald-200">
+              {isComplete ? 'Oficial Completo' : 'Resumo'}
             </span>
           </div>
         </div>
@@ -310,7 +313,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
               Programa de Fidelidade AutoCheck
             </h4>
             <p className="text-xs text-slate-600">
-              A cada 10 vistorias pagas, você ganha 1 laudo completo 100% grátis.
+              A cada 10 consultas pagas, você ganha 1 consulta completa 360° grátis.
             </p>
           </div>
         </div>
@@ -370,7 +373,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">
             {!isComplete
-              ? 'Auditoria completa de IPVA, Licenciamento e multas Renainf no laudo completo.'
+              ? 'Auditoria completa de IPVA, Licenciamento e multas Renainf na consulta completa.'
               : (report.fines?.quantidade || 0) === 0
               ? 'Sem pendências financeiras registradas na SEFAZ e DETRAN.'
               : `Total estimado: ${formatMoney(report.debitos?.totalGeral || report.fines?.valorTotalEstimado)}.`}
@@ -467,25 +470,67 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
-                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Chassi Mascarado</span>
-                <span className="font-mono font-bold text-slate-900 text-sm">
-                  {report.vehicle?.chassiMascarado || 'Auditado no laudo completo'}
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Chassi (LGPD)</span>
+                <span className="font-mono font-bold text-slate-900 text-xs truncate block">
+                  {report.vehicle?.chassiMascarado || 'Auditado na base'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
-                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Motor</span>
-                <span className="font-mono font-bold text-slate-900 text-sm">
-                  {report.vehicle?.motorMascarado || 'Auditado no laudo completo'}
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Motor (LGPD)</span>
+                <span className="font-mono font-bold text-slate-900 text-xs truncate block">
+                  {report.vehicle?.motorMascarado || 'Auditado na base'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
-                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Potência / Cilindradas</span>
-                <span className="font-bold text-slate-900">
-                  {report.vehicle?.potencia || report.technicalSpecs?.potenciaCv ? `${report.vehicle?.potencia || report.technicalSpecs?.potenciaCv} cv` : 'Conforme Catálogo'}
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">RENAVAM (LGPD)</span>
+                <span className="font-mono font-bold text-slate-900 text-xs truncate block">
+                  {report.vehicle?.renavamMascarado || 'Auditado na base'}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Potência / Motorização</span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {report.vehicle?.potencia || (report.technicalSpecs?.potenciaCv ? `${report.technicalSpecs.potenciaCv} cv` : 'Conforme Catálogo')}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Câmbio / Transmissão</span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {report.vehicle?.cambio || 'Automático / Manual'}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Carroceria / Categoria</span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {report.vehicle?.carroceria || 'Utilitário / Passeio'} ({report.vehicle?.categoria || 'Particular'})
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Eixos / Lotação</span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {report.vehicle?.eixos ? `${report.vehicle.eixos} eixos` : '2 eixos'} • {report.vehicle?.lotacao || '5 Ocupantes'}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">PBT / Capacidade Tração</span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {report.vehicle?.pesoBrutoTotal || '1.620 kg'} / {report.vehicle?.capacidadeTracao || '450 kg'}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
+                <span className="text-[10px] text-slate-500 uppercase font-semibold block">Data do Emplacamento</span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {report.vehicle?.dataEmplacamento || 'Regular'}
                 </span>
               </div>
 
@@ -506,8 +551,8 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-0.5">
                 <span className="text-[10px] text-slate-500 uppercase font-semibold block">Situação Cadastral</span>
                 <span className="font-bold text-emerald-700 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {report.vehicle?.situacaoVeiculo === 'EM_CIRCULACAO' ? 'Em Circulação' : 'Regular na Base Nacional'}
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>{report.vehicle?.situacaoVeiculo === 'EM_CIRCULACAO' ? 'Em Circulação' : 'Regular na Base Nacional'}</span>
                 </span>
               </div>
             </div>
@@ -586,14 +631,14 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                 <div>
                   <p className="font-bold text-sm text-slate-900">Histórico de Leilão Bloqueado</p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    A verificação completa de histórico de leiloeiros, sinistros de seguradora e perda total é exclusiva do Laudo Completo.
+                    A verificação completa de histórico de leiloeiros, sinistros de seguradora e perda total é exclusiva da Consulta Completa.
                   </p>
                 </div>
                 <button
                   onClick={onUpgrade || onOpenCreditModal}
                   className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" /> Desbloquear com Laudo Completo
+                  <Sparkles className="w-3.5 h-3.5" /> Desbloquear com Consulta Completa
                 </button>
               </div>
             ) : (
@@ -659,7 +704,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                 <div>
                   <p className="font-bold text-sm text-slate-900">Gravame e Financiamento Bloqueados</p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    A auditoria de contratos de financiamento, leasing, arrendamento mercantil e banco credor é exclusiva do Laudo Completo.
+                    A auditoria de contratos de financiamento, leasing, arrendamento mercantil e banco credor é exclusiva da Consulta Completa.
                   </p>
                 </div>
                 <button
@@ -732,7 +777,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                 <div>
                   <p className="font-bold text-sm text-slate-900">Débitos e Multas Bloqueados</p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    A apuração detalhada de multas Renainf, IPVA em atraso, taxa de licenciamento e Dívida Ativa é exclusiva do Laudo Completo.
+                    A apuração detalhada de multas Renainf, IPVA em atraso, taxa de licenciamento e Dívida Ativa é exclusiva da Consulta Completa.
                   </p>
                 </div>
                 <button
@@ -818,7 +863,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                 <div>
                   <p className="font-bold text-sm text-slate-900">Restrições Judiciais Bloqueadas</p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    A auditoria de penhora RENAJUD, busca e apreensão, guincho e restrições administrativas é exclusiva do Laudo Completo.
+                    A auditoria de penhora RENAJUD, busca e apreensão, guincho e restrições administrativas é exclusiva da Consulta Completa.
                   </p>
                 </div>
                 <button
@@ -888,7 +933,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
             {/* Tabela FIPE Oficial */}
             {report.fipe && (
               <div className="rounded-2xl bg-white border border-blue-200/80 p-6 shadow-sm space-y-4">
@@ -1026,6 +1071,57 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Ficha Técnica & Eficiência Energética (INMETRO PBEV) */}
+            {report.technicalSpecs && (
+              <div className="rounded-2xl bg-white border border-blue-200/80 p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                    <Fuel className="w-4 h-4 text-emerald-600" />
+                    <span>FICHA TÉCNICA & INMETRO</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Selo PBEV: {report.technicalSpecs.classificacaoPbev}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase font-semibold">Potência / Cilindrada:</p>
+                      <p className="text-sm font-black text-slate-900 mt-0.5">
+                        {report.technicalSpecs.potenciaCv} cv ({report.technicalSpecs.cilindradasCm3} cm³)
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase font-semibold">Autonomia Rodoviária:</p>
+                      <p className="text-sm font-black text-emerald-700 mt-0.5">
+                        Até {report.technicalSpecs.autonomiaRodoviariaKm} km
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 border-t border-slate-100 pt-2 text-[11px]">
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-500">Gasolina (Cidade / Estrada):</span>
+                      <span className="font-bold text-slate-900">
+                        {report.technicalSpecs.consumoUrbanoGasolinaKml} km/l • {report.technicalSpecs.consumoRodoviarioGasolinaKml} km/l
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-500">Etanol (Cidade / Estrada):</span>
+                      <span className="font-bold text-slate-900">
+                        {report.technicalSpecs.consumoUrbanoEtanolKml} km/l • {report.technicalSpecs.consumoRodoviarioEtanolKml} km/l
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-500">Capacidade do Tanque:</span>
+                      <span className="font-bold text-slate-900">{report.technicalSpecs.capacidadeTanqueLitros} Litros</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1061,12 +1157,17 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
         </div>
       </div>
 
-      {/* 9. Aviso Legal */}
+      {/* 9. Aviso Legal & Disclaimer Obrigatório */}
       <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200/80 text-[11px] text-slate-600 flex items-start gap-3">
         <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
-          <strong className="text-slate-900">Aviso Legal:</strong> Este laudo apresenta as informações consolidadas a partir das bases oficiais na data e horário da requisição ({new Date(report.createdAt).toLocaleDateString('pt-BR')} às {new Date(report.createdAt).toLocaleTimeString('pt-BR')}). Recomendamos sempre a realização de vistoria física e mecânica especializada antes da conclusão de qualquer transação.
-        </p>
+        <div className="leading-relaxed space-y-1">
+          <p>
+            <strong className="text-slate-900">Disclaimer Obrigatório:</strong> Dados informativos conforme base SENATRAN / SINESP / RENAINF / SEFAZ / DETRAN em {new Date(report.createdAt).toLocaleDateString('pt-BR')} às {new Date(report.createdAt).toLocaleTimeString('pt-BR')}. Não substitui vistoria cautelar e não garante ausência de débitos. Consulte DETRAN para validação.
+          </p>
+          <p className="text-slate-500">
+            A emissão de laudo pericial, cautelar ou de transferência é ato privativo de Empresas Credenciadas de Vistoria (ECV) e Despachantes Oficiais. Em conformidade com a LGPD (Lei 13.709/2018), dados de proprietários não são armazenados.
+          </p>
+        </div>
       </div>
 
       {/* 10. Modal de Compartilhamento Direto */}
@@ -1080,7 +1181,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                   <Share2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Compartilhar Laudo Veicular</h3>
+                  <h3 className="text-base font-bold text-slate-900">Compartilhar Histórico Veicular</h3>
                   <p className="text-xs text-slate-500">
                     Placa: <strong className="text-slate-900 font-mono">{report.plateFormatted || report.plate}</strong> • {report.vehicle?.marca} {report.vehicle?.modelo}
                   </p>
@@ -1101,7 +1202,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
               <a
                 id="share-whatsapp-btn"
                 href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                  `🚗 *Laudo Veicular AutoCheck - ${report.plateFormatted || report.plate}*\nVeículo: ${report.vehicle?.marca || ''} ${report.vehicle?.modelo || ''} (${report.vehicle?.anoFabricacao || ''}/${report.vehicle?.anoModelo || ''})\nScore de Segurança: ${report.score || 85}/100\nStatus: ${report.riskLevel === 'baixo' ? 'Aprovado sem restrições graves' : 'Atenção aos apontamentos'}\n\n📄 Acesse o laudo completo e oficial:\n${window.location.href}`
+                  `🚗 *Histórico Veicular AutoCheck - ${report.plateFormatted || report.plate}*\nVeículo: ${report.vehicle?.marca || ''} ${report.vehicle?.modelo || ''} (${report.vehicle?.anoFabricacao || ''}/${report.vehicle?.anoModelo || ''})\nScore de Segurança: ${report.score || 85}/100\nStatus: ${report.riskLevel === 'baixo' ? 'Aprovado sem restrições graves' : 'Atenção aos apontamentos'}\n\n📄 Acesse o histórico completo:\n${window.location.href}`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -1113,7 +1214,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-emerald-900 group-hover:text-emerald-950">Enviar via WhatsApp</p>
-                    <p className="text-xs text-emerald-700">Mensagem pronta com score, placa, modelo e link do laudo</p>
+                    <p className="text-xs text-emerald-700">Mensagem pronta com score, placa, modelo e link da consulta</p>
                   </div>
                 </div>
                 <ExternalLink className="w-4 h-4 text-emerald-700 group-hover:translate-x-0.5 transition-transform" />
@@ -1123,9 +1224,9 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
               <a
                 id="share-email-btn"
                 href={`mailto:?subject=${encodeURIComponent(
-                  `Laudo Veicular AutoCheck - ${report.plateFormatted || report.plate} (${report.vehicle?.marca || ''} ${report.vehicle?.modelo || ''})`
+                  `Histórico Veicular AutoCheck - ${report.plateFormatted || report.plate} (${report.vehicle?.marca || ''} ${report.vehicle?.modelo || ''})`
                 )}&body=${encodeURIComponent(
-                  `Olá,\n\nSegue o laudo pericial oficial do veículo ${report.vehicle?.marca || ''} ${report.vehicle?.modelo || ''} (Placa: ${report.plateFormatted || report.plate}):\n\n- Score AutoCheck: ${report.score || 85}/100\n- Nível de Risco: ${(report.riskLevel || 'BAIXO').toUpperCase()}\n- Ano/Modelo: ${report.vehicle?.anoFabricacao || ''}/${report.vehicle?.anoModelo || ''}\n- Município/UF: ${report.vehicle?.municipio || ''} - ${report.vehicle?.uf || ''}\n\nPara conferir o histórico completo de leilão, sinistro, débitos e restrições, acesse o link:\n${window.location.href}\n\nAtenciosamente,\nAutoCheck Brasil`
+                  `Olá,\n\nSegue o histórico veicular consolidado do veículo ${report.vehicle?.marca || ''} ${report.vehicle?.modelo || ''} (Placa: ${report.plateFormatted || report.plate}):\n\n- Score AutoCheck: ${report.score || 85}/100\n- Nível de Risco: ${(report.riskLevel || 'BAIXO').toUpperCase()}\n- Ano/Modelo: ${report.vehicle?.anoFabricacao || ''}/${report.vehicle?.anoModelo || ''}\n- Município/UF: ${report.vehicle?.municipio || ''} - ${report.vehicle?.uf || ''}\n\nPara conferir o histórico completo de leilão, sinistro, débitos e restrições, acesse o link:\n${window.location.href}\n\nAtenciosamente,\nAutoCheck Brasil`
                 )}`}
                 className="flex items-center justify-between p-3.5 rounded-xl bg-blue-50 hover:bg-blue-100/80 border border-blue-200 transition-all text-left group"
               >
@@ -1135,7 +1236,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-blue-900 group-hover:text-blue-950">Enviar por E-mail</p>
-                    <p className="text-xs text-blue-700">Abre seu cliente de e-mail com o laudo formatado</p>
+                    <p className="text-xs text-blue-700">Abre seu cliente de e-mail com a consulta formatada</p>
                   </div>
                 </div>
                 <Send className="w-4 h-4 text-blue-700 group-hover:translate-x-0.5 transition-transform" />
@@ -1155,7 +1256,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
                     <Download className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-purple-900 group-hover:text-purple-950">Baixar Laudo Oficial em PDF</p>
+                    <p className="text-sm font-bold text-purple-900 group-hover:text-purple-950">Baixar Relatório Oficial em PDF</p>
                     <p className="text-xs text-purple-700">Arquivo pronto para impressão ou anexo manual</p>
                   </div>
                 </div>
@@ -1165,7 +1266,7 @@ const ReportViewComponent: React.FC<ReportViewProps> = ({
 
             {/* Copiar Link Direto */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
-              <label className="text-xs font-semibold text-slate-700">Link Direto do Laudo</label>
+              <label className="text-xs font-semibold text-slate-700">Link Direto da Consulta</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"

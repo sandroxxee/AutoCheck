@@ -118,8 +118,7 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: true,
-        type: 'module'
+        enabled: false
       }
     })
   ],
@@ -131,7 +130,6 @@ export default defineConfig({
   server: {
     cors: true,
     allowedHosts: true,
-    hmr: false,
-    watch: null
+    hmr: false
   }
 });

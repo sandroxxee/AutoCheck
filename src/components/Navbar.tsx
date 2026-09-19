@@ -89,6 +89,34 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* PWA Install Button */}
           <PWAInstallButton variant="navbar" />
 
+          {/* Prominent User Credits Indicator Pill - Always Visible */}
+          {user && (
+            <button
+              id="nav-credits-indicator-btn"
+              type="button"
+              onClick={onOpenCreditModal}
+              title={`Saldo de Consultas: ${user.credits ?? 0} disponíveis. Clique para recarregar.`}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs border ${
+                (user.credits ?? 0) > 0
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400'
+                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 hover:border-amber-400'
+              }`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  (user.credits ?? 0) > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                }`}
+              />
+              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="whitespace-nowrap">
+                {user.credits ?? 0} <span className="font-semibold text-slate-600 hidden xs:inline">{user.credits === 1 ? 'crédito' : 'créditos'}</span>
+              </span>
+              <span className="hidden sm:inline text-[9px] uppercase font-black tracking-wider text-blue-700 bg-white/90 px-1.5 py-0.5 rounded-md border border-blue-200 ml-0.5">
+                + Recarregar
+              </span>
+            </button>
+          )}
+
           {/* User Account Controls */}
           {user ? (
             <div className="relative">
@@ -114,10 +142,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="px-3 py-2 border-b border-blue-100">
                     <p className="font-bold text-slate-900 truncate">{user.name || 'Usuário'}</p>
                     <p className="text-[11px] text-slate-500 truncate">{user.email}</p>
-                    <div className="mt-1 flex items-center gap-1">
+                    <div className="mt-1 flex items-center justify-between gap-1">
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                         <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
                         {user.role === 'admin' ? 'Administrador' : 'Conta Ativa'}
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        {user.credits ?? 0} {user.credits === 1 ? 'crédito' : 'créditos'}
                       </span>
                     </div>
                   </div>
@@ -143,7 +174,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full px-3 py-2 text-left hover:bg-blue-50/70 flex items-center gap-2 text-slate-700 hover:text-blue-700 cursor-pointer transition-colors"
                   >
                     <Car className="w-3.5 h-3.5 text-blue-600" />
-                    Meus Laudos & Histórico
+                    Minhas Consultas & Histórico
                   </button>
 
                   <button

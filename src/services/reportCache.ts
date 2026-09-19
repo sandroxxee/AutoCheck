@@ -5,7 +5,7 @@ import { ConsolidatedReport } from '../types/index.ts';
  * Standard TTL: 24 hours (86,400,000 ms) to keep government data fresh while avoiding redundant API calls
  * Max entries: 40 reports (LRU eviction) to preserve localStorage capacity
  */
-const CACHE_STORAGE_KEY = 'autocheck_vehicle_reports_cache_v1';
+const CACHE_STORAGE_KEY = 'autocheck_vehicle_reports_cache_v3';
 const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface CachedReportEntry {
@@ -73,12 +73,22 @@ export function getCachedReport(plate: string, queryType: 'basic' | 'complete' |
   const store = getCacheStore();
   const now = Date.now();
 
+  // Helper to verify if cached report satisfies complete requirements
+  const isReportValidForType = (rep: ConsolidatedReport, reqType: string) => {
+    if (!rep) return false;
+    if (reqType === 'basic') return true;
+    // Complete queries require enriched fields
+    return Boolean(rep.fipe && rep.ipva);
+  };
+
   // Check direct key first (e.g. BRA2E19_complete)
   const exactKey = `${cleanPlate}_${queryType}`;
   const exactEntry = store[exactKey];
 
   if (exactEntry && exactEntry.expiresAt > now && exactEntry.report) {
-    return exactEntry.report;
+    if (isReportValidForType(exactEntry.report, queryType)) {
+      return exactEntry.report;
+    }
   }
 
   // If searching for basic or complete, check if a complete/professional report is available
@@ -86,13 +96,17 @@ export function getCachedReport(plate: string, queryType: 'basic' | 'complete' |
     const completeKey = `${cleanPlate}_complete`;
     const completeEntry = store[completeKey];
     if (completeEntry && completeEntry.expiresAt > now && completeEntry.report) {
-      return completeEntry.report;
+      if (isReportValidForType(completeEntry.report, queryType)) {
+        return completeEntry.report;
+      }
     }
 
     const proKey = `${cleanPlate}_professional`;
     const proEntry = store[proKey];
     if (proEntry && proEntry.expiresAt > now && proEntry.report) {
-      return proEntry.report;
+      if (isReportValidForType(proEntry.report, queryType)) {
+        return proEntry.report;
+      }
     }
   }
 
@@ -105,8 +119,8 @@ export function getCachedReport(plate: string, queryType: 'basic' | 'complete' |
         if (queryType === 'basic') {
           return entry.report;
         }
-        // If requested queryType is complete, only complete/professional satisfies it
-        if (queryType === 'complete' && (entry.report.queryType === 'complete' || entry.report.queryType === 'professional')) {
+        // If requested queryType is complete, only valid complete/professional satisfies it
+        if ((entry.report.queryType === 'complete' || entry.report.queryType === 'professional') && isReportValidForType(entry.report, queryType)) {
           return entry.report;
         }
       }

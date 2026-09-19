@@ -29,7 +29,7 @@ export const ContactSupportModal: React.FC<ContactSupportModalProps> = ({
   const [name, setName] = useState(userName);
   const [email, setEmail] = useState(userEmail);
   const [plateRelated, setPlateRelated] = useState(defaultPlate);
-  const [category, setCategory] = useState<'duvida_laudo' | 'financeiro' | 'b2b_api' | 'parceria' | 'outro'>('duvida_laudo');
+  const [category, setCategory] = useState<'duvida_consulta' | 'financeiro' | 'b2b_api' | 'parceria' | 'outro'>('duvida_consulta');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -136,7 +136,7 @@ export const ContactSupportModal: React.FC<ContactSupportModalProps> = ({
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight">Central de Atendimento & Suporte</h2>
                   <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                    Dúvidas sobre laudos, integrações B2B ou solicitações técnicas.
+                    Dúvidas sobre consultas, integrações B2B ou solicitações técnicas.
                   </p>
                 </div>
               </div>
@@ -215,7 +215,7 @@ export const ContactSupportModal: React.FC<ContactSupportModalProps> = ({
                       onChange={(e) => setCategory(e.target.value as any)}
                       className="w-full bg-slate-50 hover:bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
                     >
-                      <option value="duvida_laudo">Dúvida sobre Laudo Veicular</option>
+                      <option value="duvida_consulta">Dúvida sobre Consulta Veicular</option>
                       <option value="financeiro">Financeiro / Recarga de Créditos</option>
                       <option value="b2b_api">API & Integração para Empresas</option>
                       <option value="parceria">Parceria / Concessionárias</option>
@@ -242,7 +242,7 @@ export const ContactSupportModal: React.FC<ContactSupportModalProps> = ({
                     id="support-subject-input"
                     type="text"
                     required
-                    placeholder="Ex: Esclarecimento sobre restrição financeira no laudo"
+                    placeholder="Ex: Esclarecimento sobre restrição financeira no histórico"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     className="w-full bg-slate-50 hover:bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"

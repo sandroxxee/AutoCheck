@@ -30,8 +30,7 @@ export class MockProvider implements VehicleDataProvider {
 
   private isDemoAllowed(plate: string): boolean {
     const clean = plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const demoPlates = ['BRA2E19', 'ABC1D23', 'XYZ9876', 'DEMO123', 'MOC1234', 'TEST999', 'ROU8080', 'SAV1010', 'KOL9876', 'JIX7B96'];
-    return process.env.DEMO_MODE === 'true' || demoPlates.includes(clean);
+    return clean.length === 7;
   }
 
   private async simulateLatency(min = 120, max = 350): Promise<number> {
@@ -170,6 +169,46 @@ export class MockProvider implements VehicleDataProvider {
       };
     }
 
+    if (clean === 'JIX7B91' || clean === 'JIX-7B91') {
+      return {
+        success: true,
+        sourceId: this.config.id,
+        sourceName: this.config.name,
+        latencyMs: latency,
+        status: 'success',
+        data: {
+          marca: 'VOLKSWAGEN',
+          modelo: 'NIVUS HIGHLINE 200 TSI',
+          submodelo: 'Nivus',
+          versao: 'Highline 1.0 Turbo 200 TSI Flex Aut. 6M',
+          anoFabricacao: 2022,
+          anoModelo: 2023,
+          cor: 'CINZA PLATINUM',
+          combustivel: 'Álcool / Gasolina (Flex)',
+          chassiMascarado: '9BWZZZ6KZNP***7B91',
+          motorMascarado: 'DHS******1029',
+          renavamMascarado: '0129******3',
+          municipio: 'SÃO PAULO',
+          uf: 'SP',
+          segmento: 'SUV Cupê Compacto',
+          potencia: '128 cv (E) / 116 cv (G)',
+          cilindradas: '999 cc',
+          tipoVeiculo: 'Automóvel',
+          especieVeiculo: 'Passageiro',
+          categoria: 'Particular',
+          carroceria: 'Utilitário Esportivo (SUV)',
+          eixos: 2,
+          lotacao: '5 Ocupantes',
+          pesoBrutoTotal: '1.620 kg',
+          capacidadeTracao: '450 kg',
+          dataEmplacamento: '15/02/2023',
+          cambio: 'Automático Tiptronic 6 Marchas',
+          nacionalidade: 'Nacional',
+          situacaoVeiculo: 'EM_CIRCULACAO'
+        }
+      };
+    }
+
     if (clean === 'JIX7B96' || clean === 'JIX-7B96') {
       return {
         success: true,
@@ -265,10 +304,21 @@ export class MockProvider implements VehicleDataProvider {
         cor: item.cor,
         combustivel: item.modelo.includes('DIESEL') ? 'Diesel S10' : 'Álcool / Gasolina (Flex)',
         chassiMascarado: maskSensitive(`9BR${clean}89215093`, 'chassi'),
+        motorMascarado: maskSensitive(`MTR${clean}9923`, 'motor'),
+        renavamMascarado: `00${clean.slice(-3)}****${clean.slice(0, 2)}`,
         municipio: cities[uf],
         uf,
         segmento: item.segmento,
+        submodelo: item.modelo.split(' ')[0],
         potencia: item.pot,
+        categoria: 'Particular',
+        carroceria: item.segmento.includes('Picape') ? 'Caminhonete / Picape' : 'Utilitário / Automóvel',
+        eixos: 2,
+        lotacao: '5 Ocupantes',
+        pesoBrutoTotal: '1.750 kg',
+        capacidadeTracao: '500 kg',
+        dataEmplacamento: '20/04/2022',
+        cambio: 'Automático',
         tipoVeiculo: 'Automóvel',
         especieVeiculo: 'Passageiro',
         nacionalidade: 'Nacional',

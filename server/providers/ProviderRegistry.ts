@@ -6,6 +6,7 @@ import { SenatranProvider } from './SenatranProvider.ts';
 import { APIBrasilProvider } from './ApiBrasilProvider.ts';
 import { BrasilApiProvider } from './BrasilApiProvider.ts';
 import { ProviderConfig } from '../../shared/types/index.ts';
+import { captureApiException, trackApiPerformance } from '../services/sentry.ts';
 
 export interface ProviderItem {
   id: string;
@@ -18,20 +19,20 @@ export interface ProviderItem {
 
 export const providers: ProviderItem[] = [
   {
-    id: "apibrasil",
-    instance: new APIBrasilProvider(),
-    enabled: true,
-    priority: 1, // tenta primeiro
-    modules: ["basic", "theft", "financing", "accident", "auction", "fines", "administrativeRestrictions"], // APIBrasil cobre dados cadastrais, furto, gravame, sinistro, leilão, multas e restrições
-    cost: 0.45
-  },
-  {
     id: "brasilapi",
     instance: new BrasilApiProvider(),
     enabled: true,
-    priority: 2,
-    modules: ["basic", "theft"],
+    priority: 1, // Prioridade 1: BrasilAPI como fonte primária gratuita
+    modules: ["basic", "theft", "fipe"],
     cost: 0.00
+  },
+  {
+    id: "apibrasil",
+    instance: new APIBrasilProvider(),
+    enabled: true,
+    priority: 2, // Prioridade 2: APIBrasil como fallback pago
+    modules: ["basic", "theft", "financing", "accident", "auction", "fines", "administrativeRestrictions"],
+    cost: 0.45
   },
   {
     id: "mock",
@@ -225,6 +226,7 @@ export class ProviderRegistry {
           // Reset failure count on success
           const cb = this.circuitBreakers.get(provider.config.id);
           if (cb) cb.failures = 0;
+          trackApiPerformance(provider.config.name, moduleName, Date.now() - start, true);
           return response;
         }
 
@@ -235,6 +237,11 @@ export class ProviderRegistry {
           lastError = response.errorMessage;
           lastSourceId = provider.config.id;
           lastSourceName = provider.config.name;
+          captureApiException(new Error(response.errorMessage), {
+            provider: provider.config.name,
+            endpoint: moduleName,
+            extras: { latencyMs: Date.now() - start }
+          });
         }
       } catch (err: unknown) {
         const errorMsg = (err as Error).message;
@@ -252,6 +259,11 @@ export class ProviderRegistry {
             cb.isOpen = true;
           }
         }
+        captureApiException(err, {
+          provider: provider.config.name,
+          endpoint: moduleName,
+          extras: { circuitBreakerFailures: cb?.failures, latencyMs: Date.now() - start }
+        });
         console.warn(`[AutoCheck] Provider fallback triggered for ${provider.config.name} (${moduleName}):`, (err as Error).message);
         // Continue to next provider in priority chain
       }

@@ -16,7 +16,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email == "sandrooxxee@gmail.com" && request.auth.token.email_verified == true) ||
+        request.auth.token.email == "sandrooxxee@gmail.com" ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -37,18 +37,12 @@ service cloud.firestore {
 
     // Vehicle Reports Collection
     match /reports/{reportId} {
-      allow get: if isValidId(reportId) && (
-        !('userId' in resource.data) ||
-        resource.data.userId == null ||
-        resource.data.userId == '' ||
-        resource.data.userId == request.auth.uid ||
-        isAdmin()
-      );
+      allow get: if isValidId(reportId);
       allow list: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isSignedIn() && isValidId(reportId);
+      allow create: if isValidId(reportId);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

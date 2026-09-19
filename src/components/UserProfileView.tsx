@@ -256,7 +256,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         <div className="bg-white border border-blue-200/90 rounded-2xl p-6 sm:p-8 space-y-6 text-slate-900 shadow-sm">
           <div>
             <h2 className="text-lg font-black text-slate-900">Informações Pessoais e Cadastrais</h2>
-            <p className="text-xs text-slate-600 mt-1 font-medium">Mantenha seus dados atualizados para emissão correta de laudos e notas fiscais.</p>
+            <p className="text-xs text-slate-600 mt-1 font-medium">Mantenha seus dados atualizados para emissão correta de consultas e comprovantes fiscais.</p>
           </div>
 
           <form onSubmit={handleSaveProfile} className="space-y-4">

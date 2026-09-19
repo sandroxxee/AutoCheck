@@ -36,7 +36,7 @@ export const NotFoundView: React.FC<NotFoundViewProps> = ({
             Erro 404 • Rota Não Localizada
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-            Página ou Laudo Não Encontrado
+            Página ou Consulta Não Encontrada
           </h1>
           <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed font-medium">
             O endereço que você tentou acessar não existe ou o identificador da consulta expirou. Você pode realizar uma nova consulta de placa abaixo ou retornar ao início.

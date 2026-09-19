@@ -19,8 +19,10 @@ const LegalModal = lazy(() => import('./components/LegalModal.tsx').then(m => ({
 const AuthModal = lazy(() => import('./components/AuthModal.tsx').then(m => ({ default: m.AuthModal })));
 const ContactSupportModal = lazy(() => import('./components/ContactSupportModal.tsx').then(m => ({ default: m.ContactSupportModal })));
 const QueryErrorModal = lazy(() => import('./components/QueryErrorModal.tsx').then(m => ({ default: m.QueryErrorModal })));
+const NoCreditsModal = lazy(() => import('./components/NoCreditsModal.tsx').then(m => ({ default: m.NoCreditsModal })));
 
 import { ConsolidatedReport, UserAccount, CreditPackage, VehicleFreePreview } from './types/index.ts';
+import { isDemoTestPlate } from '../shared/schemas/vehicle.ts';
 import { api } from './services/api.ts';
 import { getCachedReport } from './services/reportCache.ts';
 import { saveVehicleReportToFirestore, getUserVehicleReportsFromFirestore } from './services/firebase.ts';
@@ -53,6 +55,15 @@ export function App() {
   const [queryingPlate, setQueryingPlate] = useState('');
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [noCreditsModalState, setNoCreditsModalState] = useState<{
+    isOpen: boolean;
+    plate: string;
+    currentCredits: number;
+  }>({
+    isOpen: false,
+    plate: '',
+    currentCredits: 0
+  });
   const [plateCheckoutState, setPlateCheckoutState] = useState<{ isOpen: boolean; plate: string }>({
     isOpen: false,
     plate: ''
@@ -119,8 +130,31 @@ export function App() {
     const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     if (!cleanPlate) return;
 
-    // Direct Full Report Flow: If user has credits, is admin, or already unlocked via PIX
-    if (skipPreview || user?.role === 'admin' || (user?.credits ?? 0) >= 1) {
+    const userCredits = user?.credits ?? 0;
+    const isUnlimitedAdmin = user?.role === 'admin';
+    const isDemoPlate = isDemoTestPlate(cleanPlate);
+
+    if (!user && !isDemoPlate) {
+      setPendingQuery({ plate: cleanPlate, queryType: 'complete' });
+      setAuthModalState({ isOpen: true, mode: 'login' });
+      return;
+    }
+
+    // Verificação de créditos ao consultar placa após estar logado:
+    // Placas de teste (BRA2E19, ABC1D23, SAV1010, ROU8080) são 100% gratuitas para desenvolvimento!
+    if (!isDemoPlate && !isUnlimitedAdmin && userCredits < 1 && !skipPreview) {
+      triggerHaptic('warning');
+      setPendingQuery({ plate: cleanPlate, queryType });
+      setNoCreditsModalState({
+        isOpen: true,
+        plate: cleanPlate,
+        currentCredits: userCredits
+      });
+      return;
+    }
+
+    // Direct Full Report Flow: If demo plate, user has credits, is admin, or already unlocked via PIX
+    if (isDemoPlate || skipPreview || isUnlimitedAdmin || userCredits >= 1) {
       try {
         setQueryingPlate(cleanPlate);
         setIsQuerying(true);
@@ -142,12 +176,16 @@ export function App() {
           loadRecentQueries();
         }
 
-        // Atualiza saldo do usuário
+        // Atualiza saldo do usuário para manter visível em tempo real quantas ainda tem
         await refreshUser();
       } catch (err: any) {
         if (err?.requiresCredits) {
           setPendingQuery({ plate: cleanPlate, queryType });
-          setPlateCheckoutState({ isOpen: true, plate: cleanPlate });
+          setNoCreditsModalState({
+            isOpen: true,
+            plate: cleanPlate,
+            currentCredits: 0
+          });
           return;
         }
         setCurrentView('home');
@@ -192,7 +230,7 @@ export function App() {
       setQueryErrorState({
         isOpen: true,
         plate: activeReport.plate,
-        errorMessage: (err as Error).message || 'Falha ao atualizar laudo para versão Completa.'
+        errorMessage: (err as Error).message || 'Falha ao atualizar consulta para versão Completa.'
       });
     } finally {
       setIsQuerying(false);
@@ -246,7 +284,7 @@ export function App() {
         const car = freePreviewData ? `${freePreviewData.marca} ${freePreviewData.modelo}` : '';
         return {
           title: `Análise Gratuita Placa ${plateText} - ${car} | AutoCheck Brasil`,
-          description: `Identificação veicular gratuita da placa ${plateText}. Desbloqueie o laudo completo oficial com leilão, sinistros, gravame e débitos.`,
+          description: `Identificação veicular gratuita da placa ${plateText}. Desbloqueie a consulta completa oficial com leilão, sinistros, gravame e débitos.`,
           canonicalUrl: `${origin}/analise-gratuita/${encodeURIComponent(freePreviewData?.plate || '')}`,
           noindex: false,
           ogType: 'article'
@@ -258,17 +296,17 @@ export function App() {
           const plateText = activeReport.plateFormatted || activeReport.plate;
           const car = `${activeReport.vehicle.marca} ${activeReport.vehicle.modelo}`.trim();
           return {
-            title: `Laudo Veicular Placa ${plateText} - ${car || 'Veículo'} | AutoCheck Brasil`,
+            title: `Consulta de Histórico Veicular Placa ${plateText} - ${car || 'Veículo'} | AutoCheck Brasil`,
             description: `Consulta da placa ${plateText}. Verifique situação de roubo/furto, dados do Renavam, gravame, leilão e débitos.`,
-            canonicalUrl: `${origin}/laudo/${encodeURIComponent(activeReport.plate)}`,
+            canonicalUrl: `${origin}/consulta/${encodeURIComponent(activeReport.plate)}`,
             noindex: false,
             ogType: 'article'
           };
         }
         return {
           title: 'Relatório de Consulta Veicular por Placa | AutoCheck Brasil',
-          description: 'Acesse o laudo completo com dados cadastrais, restrições e procedência veicular.',
-          canonicalUrl: `${origin}/laudo`,
+          description: 'Acesse o histórico completo com dados cadastrais, restrições e procedência veicular.',
+          canonicalUrl: `${origin}/consulta`,
           noindex: false,
           ogType: 'website'
         };
@@ -276,8 +314,8 @@ export function App() {
 
       case 'dashboard':
         return {
-          title: 'Meu Histórico de Consultas e Laudos | AutoCheck Brasil',
-          description: 'Acesse seus laudos gerados, saldo de créditos e histórico de placas consultadas.',
+          title: 'Meu Histórico de Consultas Veiculares | AutoCheck Brasil',
+          description: 'Acesse suas consultas geradas, saldo de créditos e histórico de placas consultadas.',
           canonicalUrl: `${origin}/painel`,
           noindex: true,
           ogType: 'website'
@@ -379,10 +417,10 @@ export function App() {
             {/* Minimalist Professional Header */}
             <div className="text-center space-y-2 pt-2 sm:pt-4">
               <h1 className="text-2xl sm:text-4xl font-extrabold text-[#020617] tracking-tight">
-                Segurança na <span className="text-blue-600">Compra de Veículos</span>
+                Compre e Venda Veículos <span className="text-blue-600">Sem Riscos Ocultos</span>
               </h1>
               <p className="text-sm sm:text-base text-slate-600 font-medium max-w-lg mx-auto">
-                Verifique restrições, leilão, sinistros e débitos em segundos.
+                Descubra em segundos o histórico real de leilão, sinistros, restrições financeiras e débitos direto pela placa.
               </p>
             </div>
 
@@ -391,6 +429,8 @@ export function App() {
               <PlateInput
                 onSearch={handleSearchPlate}
                 isLoading={isQuerying}
+                user={user}
+                onOpenCreditModal={handleOpenCreditModal}
               />
 
               {/* Demo/Test Quick Tap Pills with Rich Informative Tooltips */}
@@ -405,7 +445,7 @@ export function App() {
                       label: 'BRA2E19',
                       desc: 'Mercosul',
                       title: 'Veículo Regular (Padrão Mercosul)',
-                      info: 'Laudo 100% aprovado sem restrições, leilão, sinistro ou débitos em aberto.',
+                      info: 'Histórico 100% regular sem restrições, leilão, sinistro ou débitos em aberto.',
                       icon: ShieldCheck,
                       iconColor: 'text-emerald-400'
                     },
@@ -568,7 +608,7 @@ export function App() {
                 <div className="w-10 h-10 rounded-2xl icon-3d-blue flex items-center justify-center text-white mb-2.5 group-hover:scale-105 transition-transform">
                   <Car className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xs font-black text-slate-900 block">Meus Laudos</span>
+                <span className="text-xs font-black text-slate-900 block">Minhas Consultas</span>
                 <span className="text-[10px] text-slate-500 font-medium">Histórico salvo em nuvem</span>
               </button>
 
@@ -637,6 +677,7 @@ export function App() {
             user={user}
             onUpgrade={handleUpgradeReport}
             onNewSearch={handleNewSearch}
+            onRefreshReport={(plate) => handleSearchPlate(plate, 'complete', true)}
             onOpenCreditModal={handleOpenCreditModal}
           />
         )}
@@ -732,6 +773,29 @@ export function App() {
             defaultPlate={activeReport?.plate || queryingPlate}
             userEmail={user?.email || ''}
             userName={user?.name || ''}
+          />
+        )}
+
+        {/* No Credits Notification Modal */}
+        {noCreditsModalState.isOpen && (
+          <NoCreditsModal
+            isOpen={noCreditsModalState.isOpen}
+            onClose={() => setNoCreditsModalState({ isOpen: false, plate: '', currentCredits: 0 })}
+            plate={noCreditsModalState.plate}
+            currentCredits={noCreditsModalState.currentCredits}
+            onOpenPixCheckout={(plateToCheckout) => {
+              setPlateCheckoutState({ isOpen: true, plate: plateToCheckout });
+            }}
+            onOpenPackagesModal={() => {
+              setShowCreditModal(true);
+            }}
+            onSelectSamplePlate={(samplePlate) => {
+              handleSearchPlate(samplePlate);
+            }}
+            onClaimSandboxCredits={async () => {
+              await api.claimSandboxCredits();
+              await refreshUser();
+            }}
           />
         )}
 

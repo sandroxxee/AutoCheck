@@ -86,7 +86,7 @@ export async function saveVehicleReportToFirestore(
   report: ConsolidatedReport,
   userId?: string
 ): Promise<void> {
-  const currentUserId = userId || auth.currentUser?.uid || report.userId || 'anonymous';
+  const currentUserId = auth.currentUser?.uid || userId || report.userId || 'anonymous';
   const reportId = report.id || `rep_${Date.now()}_${report.plate}`;
   const path = `reports/${reportId}`;
 
@@ -106,7 +106,7 @@ export async function saveVehicleReportToFirestore(
 
     await setDoc(reportDocRef, payload, { merge: true });
   } catch (error: unknown) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn('Aviso: persistência secundária no Firestore ignorada:', error);
   }
 }
 
@@ -117,11 +117,12 @@ export async function getUserVehicleReportsFromFirestore(
   userId?: string,
   maxResults: number = 50
 ): Promise<ConsolidatedReport[]> {
-  const targetUserId = userId || auth.currentUser?.uid;
-  if (!targetUserId) {
+  // Se o cliente não estiver autenticado no Firebase Auth, não efetua listagem restrita
+  if (!auth.currentUser) {
     return [];
   }
 
+  const targetUserId = auth.currentUser.uid;
   const path = 'reports';
   try {
     const reportsCollection = collection(db, 'reports');
@@ -160,7 +161,8 @@ export async function getUserVehicleReportsFromFirestore(
       });
       return reports.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     } catch (fallbackError: unknown) {
-      handleFirestoreError(fallbackError, OperationType.LIST, path);
+      console.warn('Aviso: listagem de relatórios no Firestore indisponível:', fallbackError);
+      return [];
     }
   }
 }
@@ -169,6 +171,7 @@ export async function getUserVehicleReportsFromFirestore(
  * Recupera um relatório específico pelo ID do Firestore.
  */
 export async function getVehicleReportByIdFromFirestore(reportId: string): Promise<ConsolidatedReport | null> {
+  if (!reportId) return null;
   const path = `reports/${reportId}`;
   try {
     const docRef = doc(db, 'reports', reportId);
@@ -178,7 +181,8 @@ export async function getVehicleReportByIdFromFirestore(reportId: string): Promi
     }
     return { ...(docSnap.data() as ConsolidatedReport), id: docSnap.id };
   } catch (error: unknown) {
-    handleFirestoreError(error, OperationType.GET, path);
+    console.warn('Aviso: busca por ID no Firestore indisponível:', error);
+    return null;
   }
 }
 
@@ -186,8 +190,8 @@ export async function getVehicleReportByIdFromFirestore(reportId: string): Promi
  * Sincroniza o perfil do usuário (créditos, plano, dados de fidelidade) no Firestore.
  */
 export async function syncUserProfileInFirestore(user: UserAccount): Promise<void> {
-  const userId = user.id || auth.currentUser?.uid;
-  if (!userId) return;
+  if (!auth.currentUser) return;
+  const userId = auth.currentUser.uid;
 
   const path = `users/${userId}`;
   try {
@@ -213,7 +217,7 @@ export async function syncUserProfileInFirestore(user: UserAccount): Promise<voi
       { merge: true }
     );
   } catch (error: unknown) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn('Aviso: sincronização de perfil no Firestore ignorada:', error);
   }
 }
 
@@ -221,8 +225,8 @@ export async function syncUserProfileInFirestore(user: UserAccount): Promise<voi
  * Obtém o perfil do usuário diretamente do Firestore.
  */
 export async function getUserProfileFromFirestore(userId?: string): Promise<UserAccount | null> {
-  const targetUserId = userId || auth.currentUser?.uid;
-  if (!targetUserId) return null;
+  if (!auth.currentUser) return null;
+  const targetUserId = auth.currentUser.uid;
 
   const path = `users/${targetUserId}`;
   try {
@@ -233,6 +237,7 @@ export async function getUserProfileFromFirestore(userId?: string): Promise<User
     }
     return docSnap.data() as UserAccount;
   } catch (error: unknown) {
-    handleFirestoreError(error, OperationType.GET, path);
+    console.warn('Aviso: leitura de perfil no Firestore indisponível:', error);
+    return null;
   }
 }

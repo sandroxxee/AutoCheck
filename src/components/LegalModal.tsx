@@ -82,36 +82,46 @@ export const LegalModal: React.FC<LegalModalProps> = ({
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-slate-900">1. Compromisso com a Privacidade e LGPD</h4>
               <p>
-                A AutoCheck Brasil preza pela privacidade de todos os usuários e cidadãos, atuando em estrita observância à Lei Federal nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais).
+                A AutoCheck Brasil preza pela privacidade de todos os cidadãos e clientes, atuando em estrita conformidade com a Lei Federal nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais - LGPD).
               </p>
 
-              <h4 className="text-sm font-bold text-slate-900">2. Não Exposição de Dados Pessoais Sensíveis</h4>
+              <h4 className="text-sm font-bold text-slate-900">2. Não Armazenamento de Dados de Proprietários (PII)</h4>
               <p>
-                Nossos relatórios não divulgam CPF completo, endereço residencial, telefone ou dados privados de pessoas físicas. Quaisquer identificadores são obrigatoriamente mascarados (ex: ***.456.789-**).
+                <strong>Regra Estrita de Privacidade:</strong> Não salvamos nome, CPF ou endereço residencial do proprietário do veículo em nosso banco de dados. Caso retornado temporariamente pela API no ato da busca, os dados pessoais são exibidos no instante e descartados imediatamente, sem qualquer retenção no servidor.
               </p>
 
-              <h4 className="text-sm font-bold text-slate-900">3. Coleta e Finalidade de Dados</h4>
+              <h4 className="text-sm font-bold text-slate-900">3. Política de Expurgo em 90 Dias</h4>
               <p>
-                Armazenamos exclusivamente registros de consultas (logs técnicos) para fins de segurança, auditoria antifraude e controle de créditos adquiridos. Não comercializamos listas de dados com terceiros não autorizados.
+                Todos os logs técnicos de requisição, auditoria de segurança e dados transacionais temporários são automaticamente purgados e deletados do sistema após o período improrrogável de 90 (noventa) dias.
+              </p>
+
+              <h4 className="text-sm font-bold text-slate-900">4. Dados Fiscais e Transacionais</h4>
+              <p>
+                Registros fiscais e comprovantes de pagamento via PIX são mantidos estritamente pelo prazo exigido pela legislação tributária e bancária brasileira, assegurando conformidade com Mercado Pago, Efí e Receita Federal.
               </p>
             </div>
           )}
 
           {tab === 'termos' && (
             <div className="space-y-4">
-              <h4 className="text-sm font-bold text-slate-900">1. Natureza do Serviço</h4>
+              <h4 className="text-sm font-bold text-slate-900">1. Natureza do Serviço: Consulta de Histórico Veicular</h4>
               <p>
-                A plataforma disponibiliza serviço de agregação e enriquecimento de dados cadastrais e veiculares oriundos de bases públicas e parceiros integradores homologados.
+                A AutoCheck Brasil é um serviço de agregação informativa e cruzamento de dados públicos e privados consolidados. <strong>Nosso serviço NÃO é e NÃO substitui laudo pericial, vistoria cautelar ou inspeção de transferência</strong> (atribuições exclusivas de Empresas Credenciadas de Vistoria - ECV e despachantes devidamente credenciados).
               </p>
 
-              <h4 className="text-sm font-bold text-slate-900">2. Disponibilidade das Fontes Governamentais</h4>
+              <h4 className="text-sm font-bold text-slate-900">2. Disclaimer Obrigatório</h4>
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 font-medium text-[11px]">
+                "Dados informativos conforme bases oficiais no momento da consulta. Não substitui vistoria cautelar e não garante ausência de débitos. Consulte DETRAN para validação."
+              </div>
+
+              <h4 className="text-sm font-bold text-slate-900">3. Dados Fiscais da Empresa</h4>
               <p>
-                Em casos de indisponibilidade temporária de bases estaduais (DETRAN/SEFAZ), os registros já homologados serão apresentados com indicação de data e hora do último cruzamento seguro.
+                Operação registrada sob CNPJ: 52.194.882/0001-94 • AutoCheck Brasil Tecnologia Veicular LTDA. Comprovantes e recibos de pagamento podem ser solicitados ou emitidos diretamente pela plataforma.
               </p>
 
-              <h4 className="text-sm font-bold text-slate-900">3. Aquisição de Créditos</h4>
+              <h4 className="text-sm font-bold text-slate-900">4. Aquisição de Créditos</h4>
               <p>
-                Os créditos adquiridos não possuem prazo de expiração e podem ser utilizados para emissão de laudos completos ou compartilhamento a qualquer momento.
+                Os créditos adquiridos não possuem prazo de expiração e podem ser utilizados para consultar o histórico completo de veículos e baixar relatórios em PDF a qualquer momento.
               </p>
             </div>
           )}
@@ -120,12 +130,12 @@ export const LegalModal: React.FC<LegalModalProps> = ({
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-slate-900">1. Recomendações de Compra Segura</h4>
               <p>
-                O laudo pericial é uma ferramenta de inteligência documental prévia e essencial. Recomendamos veementemente que o comprador também realize uma vistoria física presencial e checagem mecânica de chassi antes do pagamento do veículo.
+                A consulta de histórico veicular é uma ferramenta de inteligência documental prévia fundamental. Recomendamos veementemente que o comprador realize também vistoria cautelar presencial em ECV credenciada e inspeção mecânica especializada antes de efetivar qualquer pagamento ou transferência.
               </p>
 
               <h4 className="text-sm font-bold text-slate-900">2. Verificação de Chassi e Motor</h4>
               <p>
-                Certifique-se sempre de que os caracteres gravados no vidro, chassi e motor conferem literalmente com os dados auditados no laudo oficial.
+                Certifique-se sempre de que os caracteres gravados no vidro, chassi e motor conferem literalmente com os dados auditados no histórico oficial do veículo.
               </p>
             </div>
           )}

@@ -41,6 +41,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   </head>
   <body class="bg-[#07111F] text-[#F8FAFC] antialiased selection:bg-[#3B82F6] selection:text-white min-h-screen">
+    <script>
+      // Suprime avisos benignos do websocket do Vite no ambiente de preview em container/iframe
+      (function() {
+        var origError = console.error;
+        var origWarn = console.warn;
+        console.error = function() {
+          var msg = arguments[0];
+          if (typeof msg === 'string' && (msg.indexOf('[vite]') !== -1 || msg.indexOf('websocket') !== -1)) {
+            return;
+          }
+          origError.apply(console, arguments);
+        };
+        console.warn = function() {
+          var msg = arguments[0];
+          if (typeof msg === 'string' && (msg.indexOf('[vite]') !== -1 || msg.indexOf('websocket') !== -1)) {
+            return;
+          }
+          origWarn.apply(console, arguments);
+        };
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

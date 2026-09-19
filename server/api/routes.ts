@@ -10,7 +10,7 @@ import { QueryRequestSchema } from '../../shared/schemas/vehicle.ts';
 
 export const apiRouter = Router();
 
-const DEMO_PLATES = new Set(['ABC1D23', 'BRA2E19', 'KOL9876', 'SAV1010', 'ROU8080', 'DEMO123', 'XYZ9876', 'MOC1234', 'TEST999', 'JIX7B96']);
+const DEMO_PLATES = new Set(['ABC1D23', 'BRA2E19', 'KOL9876', 'SAV1010', 'ROU8080', 'DEMO123', 'XYZ9876', 'MOC1234', 'TEST999', 'JIX7B96', 'JIX7B91']);
 
 // 1. Check Vehicle by Plate
 apiRouter.post('/vehicle/check', async (req: Request, res: Response): Promise<void> => {
@@ -704,7 +704,7 @@ apiRouter.post('/payment/confirm-pix', async (req: Request, res: Response): Prom
       priceBrl: Number(amount || 49.90),
       paymentMethod: 'Pix Instantâneo (BR Code)',
       type: 'credit',
-      description: plate ? `Desbloqueio de Laudo Completo Placa ${plate}` : reportId ? `Desbloqueio de Laudo Veicular via Pix` : `Recarga de Créditos via Pix`,
+      description: plate ? `Consulta Completa 360 Placa ${plate}` : reportId ? `Consulta de Histórico Veicular via Pix` : `Recarga de Créditos via Pix`,
       status: 'completed',
       timestamp: new Date().toISOString()
     });
@@ -716,6 +716,186 @@ apiRouter.post('/payment/confirm-pix', async (req: Request, res: Response): Prom
     });
   } catch (error: unknown) {
     res.status(400).json({ success: false, error: (error as Error).message });
+  }
+});
+
+// Mercado Pago Webhook for Pix automatic payment confirmation and instant credit delivery
+apiRouter.post('/payment/mercadopago/webhook', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const paymentId = req.body.data?.id || req.body.id || req.query.id;
+    console.log(`[MercadoPago Webhook] Recebido ID: ${paymentId}`);
+
+    if (!paymentId) {
+      // Retorna 200 para testes ou validações vazias do Mercado Pago
+      res.json({ success: true, message: 'Webhook ignorado (ID não fornecido).' });
+      return;
+    }
+
+    let paymentData: any = null;
+    const mpAccessToken = (process.env.MERCADOPAGO_ACCESS_TOKEN || '').trim();
+
+    if (mpAccessToken) {
+      try {
+        console.log(`[MercadoPago Webhook] Buscando detalhes do pagamento ${paymentId} na API oficial...`);
+        const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: {
+            'Authorization': `Bearer ${mpAccessToken}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (mpRes.ok) {
+          paymentData = await mpRes.json();
+          console.log(`[MercadoPago Webhook] Pagamento recuperado com sucesso. Status: ${paymentData.status}`);
+        } else {
+          console.error(`[MercadoPago Webhook] Erro ao buscar pagamento (${mpRes.status}):`, await mpRes.text().catch(() => ''));
+        }
+      } catch (err: any) {
+        console.error('[MercadoPago Webhook] Erro ao conectar com Mercado Pago:', err.message);
+      }
+    }
+
+    // Se falhar a API oficial ou não tiver token, mas for um payload simulado de teste (Sandbox/Preview)
+    if (!paymentData && req.body.status) {
+      console.log('[MercadoPago Webhook] Usando dados do payload enviado diretamente (Simulado/Sandbox)');
+      paymentData = req.body;
+    }
+
+    if (!paymentData) {
+      // Retornamos 200 OK para evitar que o Mercado Pago fique reenviando
+      res.json({ success: false, error: 'Não foi possível recuperar os dados do pagamento.' });
+      return;
+    }
+
+    const isApproved = paymentData.status === 'approved' || paymentData.status_detail === 'accredited';
+    
+    if (isApproved) {
+      const externalReference = paymentData.external_reference;
+      console.log(`[MercadoPago Webhook] Pagamento APROVADO! Ref Externa: ${externalReference}`);
+
+      let userId = 'user_demo';
+      let packageId: string | undefined;
+      let reportId: string | undefined;
+      let plate: string | undefined;
+      let amountBrl = Number(paymentData.transaction_amount || 0);
+
+      if (externalReference) {
+        try {
+          const parsed = JSON.parse(externalReference);
+          userId = parsed.userId || parsed.user_id || userId;
+          packageId = parsed.packageId || parsed.package_id;
+          reportId = parsed.reportId || parsed.report_id;
+          plate = parsed.plate;
+          if (parsed.amount) amountBrl = Number(parsed.amount);
+        } catch {
+          // Fallback parsing split string
+          const parts = externalReference.split('|');
+          if (parts.length >= 1 && parts[0]) userId = parts[0];
+          if (parts.length >= 2 && parts[1]) {
+            const second = parts[1];
+            if (second.startsWith('pack_') || CREDIT_PACKAGES.some(p => p.id === second)) {
+              packageId = second;
+            } else if (second.length === 7 || second.length === 8) {
+              plate = second;
+            } else {
+              reportId = second;
+            }
+          }
+          if (parts.length >= 3 && parts[2]) {
+            amountBrl = parseFloat(parts[2]) || amountBrl;
+          }
+        }
+      }
+
+      let user = dbService.getUser(userId);
+      if (!user) {
+        // Fallback: tenta buscar por email se estiver no JSON de ref externa
+        try {
+          const parsed = JSON.parse(externalReference);
+          const email = parsed.email || parsed.userEmail;
+          if (email) {
+            user = dbService.getUserByEmail(email);
+          }
+        } catch {}
+      }
+
+      // Se mesmo assim não encontrou, busca o admin de fallback ou cria temporariamente
+      if (!user) {
+        user = dbService.getUser('usr_admin_sandro') || dbService.getAllUsers()[0] || undefined;
+      }
+
+      const targetUserId = user?.id || userId;
+      let unlockedReport: any = null;
+
+      // Se for desbloqueio de placa direta por Pix:
+      if (plate) {
+        const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        console.log(`[MercadoPago Webhook] Liberando Consulta Completa automática para Placa: ${cleanPlate}`);
+        unlockedReport = await queryEngine.executeQuery({
+          plate: cleanPlate,
+          queryType: 'complete',
+          userId: targetUserId,
+          forceRefresh: true
+        });
+        dbService.saveReport(unlockedReport);
+      } else if (reportId) {
+        console.log(`[MercadoPago Webhook] Liberando upgrade de Laudo ID: ${reportId}`);
+        unlockedReport = await queryEngine.upgradeReport(reportId, targetUserId);
+      }
+
+      // Se for compra de pacotes de crédito:
+      let creditAmountAdded = 0;
+      let description = `Transação via Mercado Pago Webhook (ID: ${paymentId})`;
+
+      if (packageId) {
+        const pkg = CREDIT_PACKAGES.find(p => p.id === packageId) || CREDIT_PACKAGES[0];
+        creditAmountAdded = pkg.credits;
+        description = `Compra de ${pkg.name} (${pkg.credits} créditos) - Mercado Pago`;
+        if (user) {
+          user.credits += pkg.credits;
+          dbService.saveUser(user);
+        }
+      } else if (plate) {
+        description = `Consulta Completa Placa ${plate} (Aprovado Pix)`;
+      } else if (reportId) {
+        description = `Desbloqueio Laudo Completo ID ${reportId} (Aprovado Pix)`;
+      }
+
+      // Registra a transação no banco de dados local
+      dbService.addTransaction({
+        id: `tx_mp_${paymentId}_${Math.random().toString(36).substring(2, 5)}`,
+        userId: targetUserId,
+        amount: creditAmountAdded || 1,
+        priceBrl: amountBrl || 49.90,
+        paymentMethod: 'Pix Instantâneo (Mercado Pago Webhook)',
+        type: 'credit',
+        description,
+        status: 'completed',
+        timestamp: new Date().toISOString()
+      });
+
+      // Log de Auditoria
+      dbService.logAction(
+        'WEBHOOK_MP_PROCESSED',
+        plate || 'CREDITS',
+        `Crédito/Laudo processado via Webhook Mercado Pago com sucesso. ID Pagamento: ${paymentId}. Valor: R$ ${amountBrl.toFixed(2)}. Usuário: ${user?.email || targetUserId}`,
+        targetUserId
+      );
+
+      res.json({
+        success: true,
+        message: 'Créditos e relatórios liberados com sucesso via Webhook!',
+        userId: targetUserId,
+        creditsAdded: creditAmountAdded,
+        reportId: unlockedReport?.id
+      });
+      return;
+    }
+
+    res.json({ success: true, message: `Webhook recebido, status do pagamento: ${paymentData.status}` });
+  } catch (error: unknown) {
+    console.error('[MercadoPago Webhook] Falha ao processar webhook:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
@@ -755,6 +935,47 @@ apiRouter.post('/user/credits/buy', (req: Request, res: Response): void => {
   }
 });
 
+// 10.1 Sandbox Development Free Test Credits
+apiRouter.post('/user/credits/sandbox-bonus', (req: Request, res: Response): void => {
+  try {
+    const userId = (req.headers['x-user-id'] as string) || req.body.userId || 'usr_admin_sandro';
+    let user = dbService.getUser(userId);
+
+    // If user not found, check if it's admin or create/fallback
+    if (!user) {
+      user = dbService.getUserByEmail('sandrooxxee@gmail.com') || undefined;
+    }
+
+    if (!user) {
+      res.status(400).json({ success: false, error: 'Usuário não localizado para conceder créditos.' });
+      return;
+    }
+
+    user.credits = (user.credits || 0) + 5;
+    dbService.saveUser(user);
+
+    dbService.addTransaction({
+      id: 'tx_sandbox_' + Math.random().toString(36).substring(2, 10),
+      userId: user.id,
+      amount: 5,
+      priceBrl: 0,
+      paymentMethod: 'Sandbox / Modo de Testes',
+      type: 'credit',
+      description: 'Recarga de 5 créditos para testes em desenvolvimento',
+      status: 'completed',
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({
+      success: true,
+      message: '5 créditos gratuitos de teste adicionados com sucesso!',
+      credits: user.credits
+    });
+  } catch (error: unknown) {
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
 // 11. PDF Export
 apiRouter.post('/reports/:id/pdf', (req: Request, res: Response): void => {
   try {
@@ -769,11 +990,37 @@ apiRouter.post('/reports/:id/pdf', (req: Request, res: Response): void => {
 
     const pdfBuffer = PdfService.generateVehicleReportPdf(report, user);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=AutoCheck-${report.plateFormatted || report.plate}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=AutoCheck-Consulta-Historico-${report.plateFormatted || report.plate}.pdf`);
     res.send(pdfBuffer);
   } catch (error: unknown) {
     res.status(500).json({ success: false, error: (error as Error).message });
   }
+});
+
+// 11.2 Comprovante de Serviço Fiscal e Dados Cadastrais da Empresa (Mercado Pago / Efí / LGPD)
+apiRouter.get('/company/info', (_req: Request, res: Response): void => {
+  const company = dbService.getCompanySettings();
+  res.json({ success: true, company });
+});
+
+apiRouter.post('/admin/company-config', (req: Request, res: Response): void => {
+  try {
+    const updated = dbService.updateCompanySettings(req.body);
+    res.json({ success: true, message: 'Dados cadastrais da empresa e CNPJ atualizados com sucesso.', company: updated });
+  } catch (error: unknown) {
+    res.status(400).json({ success: false, error: (error as Error).message });
+  }
+});
+
+apiRouter.get('/transactions/:txId/receipt', (req: Request, res: Response): void => {
+  const { txId } = req.params;
+  const userId = req.headers['x-user-id'] as string;
+  const receipt = dbService.generateReceipt(txId, userId);
+  if (!receipt) {
+    res.status(404).json({ success: false, error: 'Comprovante não localizado para a transação especificada.' });
+    return;
+  }
+  res.json({ success: true, receipt });
 });
 
 // 12. JSON Export

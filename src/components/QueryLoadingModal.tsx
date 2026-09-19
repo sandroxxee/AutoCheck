@@ -14,7 +14,7 @@ export const QueryLoadingModal: React.FC<QueryLoadingModalProps> = ({ plate, isO
     { title: 'Consultando bases veiculares homologadas...', sub: 'Bases cadastrais e histórico de restrições' },
     { title: 'Analisando registros de roubo, furto e alerta...', sub: 'Verificação com sistema policial e órgãos de trânsito' },
     { title: 'Consolidando dados do veículo...', sub: 'Marca, modelo, cor, combustível e situação' },
-    { title: 'Calculando score e organizando laudo...', sub: 'Finalizando laudo com parecer pericial' }
+    { title: 'Calculando score e organizando dados...', sub: 'Finalizando histórico com dados consolidados' }
   ];
 
   useEffect(() => {

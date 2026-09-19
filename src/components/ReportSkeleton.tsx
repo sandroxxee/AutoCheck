@@ -38,7 +38,7 @@ const INQUIRY_STEPS = [
   {
     stage: 'Mercado & Inteligência',
     title: 'Calculando histórico FIPE, recalls e score de risco...',
-    detail: 'Compilação de evidências e consolidação do laudo oficial'
+    detail: 'Compilação de evidências e consolidação da consulta oficial'
   }
 ];
 
@@ -88,16 +88,14 @@ const ReportSkeletonComponent: React.FC<ReportSkeletonProps> = ({ plate, onCance
               <span>Início</span>
             )}
             <ChevronRight className="w-3 h-3 text-slate-400" />
-            <span>Processando Laudo</span>
-            <ChevronRight className="w-3 h-3 text-slate-400" />
             <span className="font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 animate-pulse">
-              {formattedPlate}
+              Placa {formattedPlate}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              Gerando Laudo do Veículo
+              Consultando Bases Oficiais
             </h1>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />

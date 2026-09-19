@@ -1,6 +1,25 @@
 import { z } from 'zod';
 import { PlateType, ScoreEvidence, AdministrativeRestrictions } from '../types/index.ts';
 
+export const DEMO_TEST_PLATES = new Set([
+  'ABC1D23',
+  'BRA2E19',
+  'KOL9876',
+  'SAV1010',
+  'ROU8080',
+  'DEMO123',
+  'XYZ9876',
+  'MOC1234',
+  'TEST999',
+  'JIX7B96',
+  'JIX7B91'
+]);
+
+export function isDemoTestPlate(plate: string): boolean {
+  const clean = (plate || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return DEMO_TEST_PLATES.has(clean);
+}
+
 /**
  * Validates and normalizes Brazilian license plates
  * Formats:

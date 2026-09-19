@@ -101,7 +101,7 @@ const ReportCardItem: React.FC<ReportCardItemProps> = React.memo(({ item, onSele
         </span>
 
         <span className="text-blue-600 group-hover:translate-x-1 transition-transform flex items-center gap-1 font-semibold">
-          <span>Ver laudo</span>
+          <span>Ver consulta</span>
           <ArrowRight className="w-3 h-3" />
         </span>
       </div>
@@ -267,7 +267,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = React.memo(({
             Minhas Consultas Veiculares
           </h1>
           <p className="text-xs text-slate-600 mt-1">
-            Acompanhe o histórico de laudos gerados, programa de fidelidade e gerencie seu saldo de créditos.
+            Acompanhe o histórico de consultas de veículos, programa de fidelidade e gerencie seu saldo de créditos.
           </p>
         </div>
 

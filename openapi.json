@@ -1,0 +1,151 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AutoCheck Brasil API",
+    "description": "API oficial para consulta pericial veicular, histórico de leilão, sinistros, gravames, débitos e emissão de laudos oficiais em PDF.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://ais-dev-geebhad64pz5ovsjpdwo3q-836917762032.us-east1.run.app",
+      "description": "Ambiente de Desenvolvimento / Produção"
+    }
+  ],
+  "paths": {
+    "/api/vehicle/check": {
+      "post": {
+        "summary": "Realiza a consulta pericial veicular completa ou básica por placa",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["plate"],
+                "properties": {
+                  "plate": {
+                    "type": "string",
+                    "example": "ABC1D23"
+                  },
+                  "queryType": {
+                    "type": "string",
+                    "enum": ["basic", "complete", "professional"],
+                    "default": "complete"
+                  },
+                  "forceRefresh": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Laudo pericial veicular gerado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "report": { "type": "object" },
+                    "user": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Usuário não autenticado"
+          },
+          "402": {
+            "description": "Saldo de créditos insuficiente"
+          },
+          "400": {
+            "description": "Placa ou parâmetros inválidos"
+          }
+        }
+      }
+    },
+    "/api/vehicle/free-preview": {
+      "post": {
+        "summary": "Obtém a prévia preliminar gratuita (marca, modelo, ano, cor, estado) antes do desbloqueio",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["plate"],
+                "properties": {
+                  "plate": { "type": "string", "example": "ABC1D23" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prévia do veículo obtida com sucesso"
+          }
+        }
+      }
+    },
+    "/api/pix/generate": {
+      "post": {
+        "summary": "Gera cobrança Pix com QR Code e Copia e Cola para pacotes de consultas",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["amount", "packageId"],
+                "properties": {
+                  "amount": { "type": "number", "example": 119.90 },
+                  "packageId": { "type": "string", "example": "pack_3" },
+                  "description": { "type": "string" },
+                  "reportId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "QR Code Pix gerado com sucesso"
+          }
+        }
+      }
+    },
+    "/api/pix/confirm": {
+      "post": {
+        "summary": "Confirma o pagamento Pix e libera créditos para o usuário",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["txId", "packageId", "amount"],
+                "properties": {
+                  "txId": { "type": "string" },
+                  "packageId": { "type": "string" },
+                  "amount": { "type": "number" },
+                  "reportId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pagamento confirmado e créditos creditados"
+          }
+        }
+      }
+    }
+  }
+}

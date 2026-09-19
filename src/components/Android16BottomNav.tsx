@@ -47,7 +47,7 @@ export const Android16BottomNav: React.FC<Android16BottomNavProps> = ({
           <span className="text-[10px] tracking-tight">Consultar</span>
         </button>
 
-        {/* Item 2: Meus Laudos */}
+        {/* Item 2: Minhas Consultas */}
         <button
           onClick={() => {
             if (user) {
@@ -72,7 +72,7 @@ export const Android16BottomNav: React.FC<Android16BottomNavProps> = ({
           >
             <Car className="w-4 h-4" />
           </div>
-          <span className="text-[10px] tracking-tight">Laudos</span>
+          <span className="text-[10px] tracking-tight">Consultas</span>
         </button>
 
         {/* Item 3: Créditos */}

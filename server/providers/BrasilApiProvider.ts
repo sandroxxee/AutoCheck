@@ -28,12 +28,12 @@ export class BrasilApiProvider implements VehicleDataProvider {
     type: 'official',
     priority: 2,
     enabled: true,
-    supports: ['basic', 'theft'],
+    supports: ['basic', 'theft', 'fipe'],
     costEstimateBrl: 0.0,
     timeoutMs: 5000,
     rateLimitPerMin: 120,
     requiresAuth: false,
-    description: 'Integração oficial gratuita BrasilAPI para dados abertos, FIPE, CEP, CNPJ e cotações.',
+    description: 'Integração oficial gratuita BrasilAPI para dados abertos, Tabela FIPE (Preços e Histórico), CEP, CNPJ e Cotações.',
     status: 'online'
   };
 
@@ -52,6 +52,14 @@ export class BrasilApiProvider implements VehicleDataProvider {
         latencyMs: Date.now() - start,
         message: (err as Error).message || 'Brasil API instável'
       };
+    }
+  }
+
+  public async getFipePrice(codigoFipe: string): Promise<any> {
+    try {
+      return await brasilApiService.getFipePreco(codigoFipe);
+    } catch {
+      return null;
     }
   }
 

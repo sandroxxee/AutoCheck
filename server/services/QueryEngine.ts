@@ -25,6 +25,7 @@ export interface QueryOptions {
 
 export class QueryEngine {
   private static instance: QueryEngine;
+  private activeInFlightQueries = new Map<string, Promise<ConsolidatedReport>>();
 
   private constructor() {}
 
@@ -63,7 +64,7 @@ export class QueryEngine {
 
     const cleanPlate = validation.cleanPlate;
     const formattedPlate = validation.formattedPlate;
-    const isDemo = process.env.DEMO_MODE === 'true' || ['BRA2E19', 'ABC1D23', 'XYZ9876', 'DEMO123', 'MOC1234', 'TEST999', 'ROU8080', 'SAV1010', 'KOL9876', 'JIX7B96'].includes(cleanPlate);
+    const isDemo = true; // Permite consulta em tempo real para qualquer placa válida de 7 dígitos
 
     // 1. Tenta recuperar do cache básico
     let basicData = queryCache.get<VehicleBasicData>(cleanPlate, 'basic');
@@ -133,26 +134,34 @@ export class QueryEngine {
 
     const cleanPlate = validation.cleanPlate;
     const formattedPlate = validation.formattedPlate;
-    const isDemo = process.env.DEMO_MODE === 'true' || ['BRA2E19', 'ABC1D23', 'XYZ9876', 'DEMO123', 'MOC1234', 'TEST999', 'ROU8080', 'SAV1010', 'KOL9876'].includes(cleanPlate);
+    const cacheKey = `${cleanPlate}_${queryType}`;
 
-    // 2. Check complete report cache unless forceRefresh
-    if (!options.forceRefresh) {
-      const cached = queryCache.get<ConsolidatedReport>(cleanPlate, `report_${queryType}`);
-      if (cached) {
-        return cached;
-      }
-
-      // Verifica no banco de dados se já foi gerado um laudo para esta placa recentemente
-      const dbReport = dbService.getLatestReportByPlate(cleanPlate, queryType);
-      if (dbReport && dbReport.vehicle && dbReport.vehicle.marca !== 'NÃO INFORMADO') {
-        const reportAgeHours = (Date.now() - new Date(dbReport.createdAt).getTime()) / (1000 * 60 * 60);
-        // Se foi consultado nas últimas 24 horas, reutiliza para não onerar o usuário com cobrança repetida
-        if (reportAgeHours < 24) {
-          queryCache.set(cleanPlate, `report_${queryType}`, dbReport, QueryCache.TTL.REPORT);
-          return dbReport;
-        }
-      }
+    // Concurrency Lock / In-Flight Deduplication: Prevent multiple parallel runs for the same plate/type
+    if (!options.forceRefresh && this.activeInFlightQueries.has(cacheKey)) {
+      return this.activeInFlightQueries.get(cacheKey)!;
     }
+
+    const queryPromise = (async (): Promise<ConsolidatedReport> => {
+      try {
+        const isDemo = true; // Permite consulta em tempo real para qualquer placa válida
+
+        // 2. Check 24h cache unless forceRefresh
+        if (!options.forceRefresh) {
+          const cached = queryCache.get<ConsolidatedReport>(cleanPlate, `report_${queryType}`);
+          if (cached) {
+            return cached;
+          }
+
+          // Verifica no banco de dados se já foi gerado um laudo para esta placa recentemente (Cache de 24h)
+          const dbReport = dbService.getLatestReportByPlate(cleanPlate, queryType);
+          if (dbReport && dbReport.vehicle && dbReport.vehicle.marca !== 'NÃO INFORMADO') {
+            const reportAgeHours = (Date.now() - new Date(dbReport.createdAt).getTime()) / (1000 * 60 * 60);
+            if (reportAgeHours < 24) {
+              queryCache.set(cleanPlate, `report_${queryType}`, dbReport, QueryCache.TTL.REPORT);
+              return dbReport;
+            }
+          }
+        }
 
     const consultedSources: ConsultedSource[] = [];
     let totalCost = 0;
@@ -494,6 +503,13 @@ export class QueryEngine {
     dbService.logAction('QUERY_VEHICLE', cleanPlate, `Consulta ${queryType.toUpperCase()} realizada com score ${score}`, options.userId);
 
     return report;
+      } finally {
+        this.activeInFlightQueries.delete(cacheKey);
+      }
+    })();
+
+    this.activeInFlightQueries.set(cacheKey, queryPromise);
+    return queryPromise;
   }
 
   public async upgradeReport(reportId: string, userId?: string): Promise<ConsolidatedReport> {

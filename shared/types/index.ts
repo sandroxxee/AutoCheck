@@ -3,6 +3,7 @@ export type PlateType = 'mercosul' | 'antiga' | 'invalida';
 export interface VehicleBasicData {
   marca: string;
   modelo: string;
+  submodelo?: string;
   versao?: string;
   anoFabricacao: number;
   anoModelo: number;
@@ -10,6 +11,7 @@ export interface VehicleBasicData {
   combustivel: string;
   chassiMascarado: string;
   motorMascarado?: string;
+  renavamMascarado?: string;
   municipio: string;
   uf: string;
   segmento?: string;
@@ -17,6 +19,14 @@ export interface VehicleBasicData {
   cilindradas?: string;
   tipoVeiculo?: string;
   especieVeiculo?: string;
+  categoria?: string;
+  carroceria?: string;
+  eixos?: number;
+  lotacao?: string;
+  pesoBrutoTotal?: string;
+  capacidadeTracao?: string;
+  dataEmplacamento?: string;
+  cambio?: string;
   nacionalidade?: 'Nacional' | 'Importado';
   situacaoVeiculo: 'EM_CIRCULACAO' | 'BAIXADO' | 'RESTRICAO' | 'NAO_DISPONIVEL';
 }

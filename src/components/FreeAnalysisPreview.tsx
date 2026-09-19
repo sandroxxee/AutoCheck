@@ -201,7 +201,7 @@ export const FreeAnalysisPreview: React.FC<FreeAnalysisPreviewProps> = ({
           </span>
         </div>
         <p className="text-slate-500 text-xs sm:text-sm">
-          Você pode liberar clicando no botão abaixo e conferindo nosso laudo completo oficial:
+          Você pode liberar clicando no botão abaixo e conferindo nosso histórico completo oficial:
         </p>
       </div>
 
@@ -272,7 +272,7 @@ export const FreeAnalysisPreview: React.FC<FreeAnalysisPreviewProps> = ({
             </div>
 
             <h3 className="text-lg sm:text-xl font-black text-slate-900 mb-1">
-              Desbloqueie o Laudo Completo
+              Desbloqueie a Consulta Completa
             </h3>
             
             <p className="text-xs sm:text-sm text-slate-600 mb-5">
@@ -316,7 +316,7 @@ export const FreeAnalysisPreview: React.FC<FreeAnalysisPreviewProps> = ({
         <div className="bg-white/80 rounded-xl p-4 border border-slate-100 shadow-sm">
           <Clock className="w-6 h-6 text-[#7C3AED] mx-auto mb-2" />
           <h4 className="text-xs font-bold text-slate-800">Resultado em Segundos</h4>
-          <p className="text-[11px] text-slate-500 mt-0.5">Sem espera: laudo em tempo real</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">Sem espera: consulta em tempo real</p>
         </div>
 
         <div className="bg-white/80 rounded-xl p-4 border border-slate-100 shadow-sm">

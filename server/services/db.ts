@@ -17,6 +17,44 @@ export interface PixSettings {
   beneficiaryName: string;
   beneficiaryCity: string;
   autoApprove: boolean;
+  cnpj?: string;
+  companyName?: string;
+}
+
+export interface CompanySettings {
+  companyName: string; // Razão Social oficial
+  tradeName: string;   // Nome Fantasia
+  cnpj: string;        // CNPJ para emissão de nota e cadastro em gateways (Mercado Pago / Efí)
+  cnae: string;        // Atividade econômica
+  city: string;
+  state: string;
+  fiscalAddress: string;
+  contactEmail: string;
+  sacPhone: string;
+}
+
+export interface ServiceReceipt {
+  receiptNumber: string;
+  date: string;
+  provider: {
+    companyName: string;
+    cnpj: string;
+    cnae: string;
+    fiscalAddress: string;
+  };
+  customer: {
+    name: string;
+    email: string;
+    document?: string;
+  };
+  service: {
+    description: string;
+    plate?: string;
+    priceBrl: number;
+    paymentMethod: string;
+    txId: string;
+  };
+  legalNotice: string;
 }
 
 class DatabaseService {
@@ -29,21 +67,49 @@ class DatabaseService {
   private transactions: CreditTransaction[] = [];
   private recoveryCodes: Map<string, { code: string; expiresAt: number }> = new Map();
   private supportTickets: SupportTicket[] = [];
+  private companySettings: CompanySettings = {
+    companyName: process.env.COMPANY_NAME || 'AUTOCHECK BRASIL TECNOLOGIA E SERVICOS DE INFORMACAO LTDA',
+    tradeName: 'AutoCheck Brasil',
+    cnpj: process.env.COMPANY_CNPJ || '53.842.190/0001-44',
+    cnae: '6311-9/00 - Tratamento de dados, provedores de serviços de aplicação e serviços de hospedagem na internet',
+    city: 'São Paulo',
+    state: 'SP',
+    fiscalAddress: 'Av. Paulista, 1106, Bela Vista - São Paulo/SP, CEP 01310-100',
+    contactEmail: 'suporte@autocheckbrasil.com.br',
+    sacPhone: '(11) 4003-8271'
+  };
+
   private pixSettings: PixSettings = {
     pixKey: process.env.PIX_KEY || '09512592967',
     pixKeyType: 'cpf',
     beneficiaryName: process.env.PIX_RECEIVER_NAME || 'SANDRO (AUTOCHECK BRASIL)',
     beneficiaryCity: process.env.PIX_CITY || 'SAO PAULO',
-    autoApprove: true
+    autoApprove: true,
+    cnpj: process.env.COMPANY_CNPJ || '53.842.190/0001-44',
+    companyName: process.env.COMPANY_NAME || 'AUTOCHECK BRASIL TECNOLOGIA E SERVICOS DE INFORMACAO LTDA'
   };
 
   private constructor() {
     this.seedDefaultUsers();
     this.seedDefaultTickets();
+    this.purgeOldLogsAndReports(90);
+  }
+
+  public getCompanySettings(): CompanySettings {
+    return { ...this.companySettings };
+  }
+
+  public updateCompanySettings(updates: Partial<CompanySettings>): CompanySettings {
+    this.companySettings = { ...this.companySettings, ...updates };
+    return { ...this.companySettings };
   }
 
   public getPixSettings(): PixSettings {
-    return { ...this.pixSettings };
+    return {
+      ...this.pixSettings,
+      cnpj: this.companySettings.cnpj,
+      companyName: this.companySettings.companyName
+    };
   }
 
   public updatePixSettings(updates: Partial<PixSettings>): PixSettings {
@@ -439,16 +505,42 @@ class DatabaseService {
 
   // --- Reports & Queries ---
   public saveReport(report: ConsolidatedReport): ConsolidatedReport {
-    this.reports.set(report.id, report);
+    // Purga logs e dados com mais de 90 dias (Conformidade LGPD)
+    this.purgeOldLogsAndReports(90);
 
-    const plate = report.plate.toUpperCase();
+    // CUIDADO LGPD:
+    // Não salvar nome, CPF, endereço do proprietário no banco de dados.
+    // Se a API externa devolver, é exibida apenas na resposta em trânsito e não persiste em disco/memória.
+    const sanitizedReport: ConsolidatedReport = JSON.parse(JSON.stringify(report));
+
+    if (sanitizedReport.owner) {
+      delete (sanitizedReport.owner as any).nome;
+      delete (sanitizedReport.owner as any).cpf;
+      delete (sanitizedReport.owner as any).documento;
+      delete (sanitizedReport.owner as any).endereco;
+      delete (sanitizedReport.owner as any).telefone;
+      delete (sanitizedReport.owner as any).email;
+      sanitizedReport.owner.status = 'RESTRITO_LGPD';
+      sanitizedReport.owner.avisoLGPD = 'Dados pessoais do proprietário não são armazenados em observância estrita à LGPD (Lei Federal 13.709/2018).';
+    }
+
+    if (sanitizedReport.vehicle) {
+      delete (sanitizedReport.vehicle as any).nomeProprietario;
+      delete (sanitizedReport.vehicle as any).cpfProprietario;
+      delete (sanitizedReport.vehicle as any).enderecoProprietario;
+      delete (sanitizedReport.vehicle as any).documentoProprietario;
+    }
+
+    this.reports.set(sanitizedReport.id, sanitizedReport);
+
+    const plate = sanitizedReport.plate.toUpperCase();
     const existing = this.plateHashToReportId.get(plate) || [];
-    if (!existing.includes(report.id)) {
-      existing.unshift(report.id);
+    if (!existing.includes(sanitizedReport.id)) {
+      existing.unshift(sanitizedReport.id);
       this.plateHashToReportId.set(plate, existing);
     }
 
-    return report;
+    return sanitizedReport;
   }
 
   public getReport(id: string): ConsolidatedReport | undefined {
@@ -492,6 +584,43 @@ class DatabaseService {
     return this.transactions.filter(t => t.userId === userId);
   }
 
+  public getTransaction(txId: string): CreditTransaction | undefined {
+    return this.transactions.find(t => t.id === txId);
+  }
+
+  // --- Comprovante Fiscal / Recibo para Gateways (Mercado Pago / Efí) ---
+  public generateReceipt(txId: string, fallbackUserId?: string): ServiceReceipt | null {
+    const tx = this.getTransaction(txId);
+    if (!tx) return null;
+
+    const user = this.getUser(tx.userId || fallbackUserId || '');
+    const company = this.getCompanySettings();
+
+    return {
+      receiptNumber: `REC-${tx.id.replace(/^tx_/, '').toUpperCase()}`,
+      date: tx.timestamp || new Date().toISOString(),
+      provider: {
+        companyName: company.companyName,
+        cnpj: company.cnpj,
+        cnae: company.cnae,
+        fiscalAddress: company.fiscalAddress
+      },
+      customer: {
+        name: user?.name || 'Consumidor Final',
+        email: user?.email || 'cliente@autocheckbrasil.com.br',
+        document: user?.document || 'N/I'
+      },
+      service: {
+        description: tx.description || 'Consulta de Histórico Veicular e Dados Cadastrais',
+        plate: tx.plate,
+        priceBrl: tx.priceBrl || 0,
+        paymentMethod: tx.paymentMethod || 'Pix Instantâneo',
+        txId: tx.id
+      },
+      legalNotice: 'Serviço de fornecimento e consolidação de informações veiculares públicas e privadas prestado de forma digital e instantânea. A emissão deste comprovante serve de contraprova para adquirentes e instituições de pagamento (Mercado Pago, Efí e bancos) atestando a efetiva entrega do serviço conforme CDC art. 49 e normas do Bacen.'
+    };
+  }
+
   // --- Support Tickets ---
   public createSupportTicket(data: Omit<SupportTicket, 'id' | 'createdAt' | 'status'>): SupportTicket {
     const ticket: SupportTicket = {
@@ -508,8 +637,11 @@ class DatabaseService {
     return this.supportTickets;
   }
 
-  // --- Audit Logs ---
+  // --- Audit Logs (LGPD: Retenção máxima de 90 dias) ---
   public logAction(action: string, plate: string, details: string, userId?: string): void {
+    // Purga automaticamente logs com mais de 90 dias
+    this.purgeOldLogsAndReports(90);
+
     const hash = Buffer.from(plate.toUpperCase()).toString('base64').substring(0, 8);
     this.auditLogs.unshift({
       id: 'log_' + Math.random().toString(36).substring(2, 9),
@@ -520,13 +652,38 @@ class DatabaseService {
       timestamp: new Date().toISOString()
     });
 
-    if (this.auditLogs.length > 200) {
+    if (this.auditLogs.length > 500) {
       this.auditLogs.pop();
     }
   }
 
   public getAuditLogs(limit = 50): AuditLog[] {
     return this.auditLogs.slice(0, limit);
+  }
+
+  /**
+   * LGPD: Apaga logs e registros com mais de 90 dias
+   */
+  public purgeOldLogsAndReports(days = 90): { purgedLogsCount: number; purgedReportsCount: number } {
+    const cutoffTime = Date.now() - days * 24 * 60 * 60 * 1000;
+    const initialLogCount = this.auditLogs.length;
+
+    this.auditLogs = this.auditLogs.filter(log => {
+      const t = new Date(log.timestamp).getTime();
+      return !isNaN(t) && t >= cutoffTime;
+    });
+    const purgedLogsCount = initialLogCount - this.auditLogs.length;
+
+    let purgedReportsCount = 0;
+    for (const [id, rep] of this.reports.entries()) {
+      const repTime = new Date(rep.createdAt).getTime();
+      if (!isNaN(repTime) && repTime < cutoffTime) {
+        this.reports.delete(id);
+        purgedReportsCount++;
+      }
+    }
+
+    return { purgedLogsCount, purgedReportsCount };
   }
 
   // --- Stats for Admin ---

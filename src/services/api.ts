@@ -342,6 +342,24 @@ export const api = {
     return data;
   },
 
+  // 7.1 Claim Sandbox Test Credits (Free for development testing)
+  async claimSandboxCredits(): Promise<{ success: boolean; message: string; credits: number }> {
+    const userId = localStorage.getItem('autocheck_user_id') || 'usr_admin_sandro';
+    const res = await fetch('/api/user/credits/sandbox-bonus', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': userId
+      },
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Falha ao adicionar créditos de teste.');
+    }
+    return data;
+  },
+
   // 8. Get prices
   async getPrices(): Promise<{ plans: PlanPricing[]; creditPackages: CreditPackage[] }> {
     const res = await fetch('/api/prices');
@@ -406,7 +424,7 @@ export const api = {
     email: string;
     phone?: string;
     subject: string;
-    category: 'duvida_laudo' | 'financeiro' | 'b2b_api' | 'parceria' | 'outro';
+    category: 'duvida_consulta' | 'duvida_laudo' | 'financeiro' | 'b2b_api' | 'parceria' | 'outro';
     message: string;
     plateRelated?: string;
   }): Promise<{ success: boolean; message: string; ticket: SupportTicket }> {
@@ -557,6 +575,65 @@ export const api = {
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao obter bancos.');
     return data.bancos || [];
+  },
+
+  // 16. Dados da Empresa, CNPJ e Recibos Fiscais (Mercado Pago / Efí / LGPD)
+  async getCompanyInfo(): Promise<any> {
+    const res = await fetch('/api/company/info');
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao obter dados da empresa.');
+    return data.company;
+  },
+
+  async updateCompanyConfig(payload: any): Promise<any> {
+    const res = await fetch('/api/admin/company-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao atualizar dados da empresa.');
+    return data.company;
+  },
+
+  async getTransactionReceipt(txId: string): Promise<any> {
+    const userId = localStorage.getItem('autocheck_user_id');
+    const res = await fetch(`/api/transactions/${encodeURIComponent(txId)}/receipt`, {
+      headers: {
+        ...(userId ? { 'x-user-id': userId } : {})
+      }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao obter recibo da transação.');
+    return data.receipt;
+  },
+
+  // 17. Mercado Pago Webhook Simulation & Testing
+  async processMercadoPagoWebhook(payload: {
+    id?: string | number;
+    action?: string;
+    type?: string;
+    data?: { id: string };
+    status?: 'approved' | 'pending' | 'rejected';
+    external_reference?: string;
+    transaction_amount?: number;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    userId?: string;
+    creditsAdded?: number;
+    reportId?: string;
+  }> {
+    const res = await fetch('/api/payment/mercadopago/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Falha ao processar webhook do Mercado Pago.');
+    }
+    return data;
   }
 };
 

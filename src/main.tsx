@@ -4,7 +4,11 @@ import App from './App.tsx';
 import { AuthProvider } from './contexts/AuthContext.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { registerPWA } from './pwa.ts';
+import { initClientSentry, captureClientError } from './services/sentryClient.ts';
 import './index.css';
+
+// Inicializa o Sentry para rastreamento silencioso de erros no frontend
+initClientSentry();
 
 // Limpa service workers antigos de cache para manter o app sempre rápido e leve
 registerPWA();
@@ -14,6 +18,7 @@ window.addEventListener('unhandledrejection', (event) => {
   // Evita poluição do console e reações não tratadas de rede
   if (event && event.reason) {
     console.warn('[AutoCheck] Operação assíncrona tratada:', event.reason?.message || event.reason);
+    captureClientError(event.reason, { type: 'unhandledrejection' });
   }
   event.preventDefault();
 });

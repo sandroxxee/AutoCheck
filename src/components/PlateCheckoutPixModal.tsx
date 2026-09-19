@@ -56,6 +56,7 @@ export const PlateCheckoutPixModal: React.FC<PlateCheckoutPixModalProps> = ({
     beneficiaryCity: string;
     pixKey?: string;
   } | null>(null);
+  const [countdown, setCountdown] = useState(60);
 
   const cleanPlate = (plate || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
@@ -66,15 +67,17 @@ export const PlateCheckoutPixModal: React.FC<PlateCheckoutPixModalProps> = ({
       setErrorMessage(null);
       setCopied(false);
       setTimeLeft(900);
+      setCountdown(60);
       generatePixForPlate();
     }
   }, [isOpen, cleanPlate]);
 
-  // Timer countdown
+  // Timer countdown and 60s confirmation countdown
   useEffect(() => {
     if (!isOpen || step !== 'pix') return;
     const interval = setInterval(() => {
       setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
   }, [isOpen, step]);
@@ -86,7 +89,7 @@ export const PlateCheckoutPixModal: React.FC<PlateCheckoutPixModalProps> = ({
 
       const res = await api.generatePix({
         amount: 49.90,
-        description: `AutoCheck Laudo Placa ${cleanPlate}`,
+        description: `AutoCheck Consulta de Histórico Placa ${cleanPlate}`,
         packageId: 'pack_complete'
       });
 
@@ -320,27 +323,34 @@ export const PlateCheckoutPixModal: React.FC<PlateCheckoutPixModalProps> = ({
               </div>
             )}
 
-            {/* Confirm Payment Button */}
+            {/* Confirm Payment Button with 1-minute countdown */}
             <div className="pt-1 space-y-2">
-              <button
-                id="checkout-confirm-payment-done-btn"
-                onClick={handleConfirmPix}
-                disabled={loading}
-                className="w-full min-h-[54px] py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-sm sm:text-base shadow-[0_10px_25px_-5px_rgba(16,185,129,0.45)] flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
-              >
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Verificando pagamento...</span>
-                  </div>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-5 h-5 text-white" />
-                    <span>Confirmar Pix e Gerar Laudo</span>
-                    <ArrowRight className="w-5 h-5 text-white" />
-                  </>
-                )}
-              </button>
+              {countdown > 0 ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold text-center flex items-center justify-center gap-2.5 animate-pulse shadow-xs">
+                  <Clock className="w-4 h-4 text-amber-700 shrink-0 animate-spin" />
+                  <span>Aguardando compensação do Pix... O botão aparecerá em <strong>{Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}</strong></span>
+                </div>
+              ) : (
+                <button
+                  id="checkout-confirm-payment-done-btn"
+                  onClick={handleConfirmPix}
+                  disabled={loading}
+                  className="w-full min-h-[54px] py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-sm sm:text-base shadow-[0_10px_25px_-5px_rgba(16,185,129,0.45)] flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+                >
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Verificando pagamento...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-white" />
+                      <span>Já fiz o Pix / Liberar Consulta Agora</span>
+                      <ArrowRight className="w-5 h-5 text-white" />
+                    </>
+                  )}
+                </button>
+              )}
 
               <p className="text-center text-[11px] text-slate-500 font-semibold flex items-center justify-center gap-1.5">
                 <Lock className="w-3 h-3 text-emerald-600" />
@@ -369,7 +379,7 @@ export const PlateCheckoutPixModal: React.FC<PlateCheckoutPixModalProps> = ({
             <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 max-w-sm mx-auto text-xs text-blue-900 font-semibold space-y-1">
               <div className="flex items-center justify-center gap-2">
                 <Car className="w-4 h-4 text-blue-600 animate-pulse" />
-                <span>Gerando laudo veicular oficial...</span>
+                <span>Gerando histórico veicular consolidado...</span>
               </div>
               <p className="text-[11px] text-slate-500">Abrindo relatório na tela em instantes...</p>
             </div>
