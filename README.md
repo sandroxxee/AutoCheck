@@ -65,7 +65,7 @@ Todas as rotas de API utilizam blindagem com autenticação por cabeçalhos, lim
 ## 👨‍💻 Autoria e Contato
 
 * **Criador e Desenvolvedor Principal:** Sandro Luiz Mayer
-* **E-mail de Contato:** sandrooxxee@gmail.com
+* **E-mail de Contato:** 
 * **Projeto:** AutoCheck Brasil / Hunter de Ofertas
 
 Para solicitações de licenciamento, parcerias comerciais ou permissões especiais de uso, entre em contato diretamente com o autor.
