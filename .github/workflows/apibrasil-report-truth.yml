@@ -1,0 +1,108 @@
+name: Corrigir evidencias do relatorio APIBrasil
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apibrasil-report-truth.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apibrasil-report-truth
+  cancel-in-progress: false
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Corrigir dados sem consultar API paga
+        shell: python
+        run: |
+          from pathlib import Path
+          import re, subprocess
+          subprocess.run(['git', 'switch', '-c', 'fix/relatorio-apibrasil-real'], check=True)
+          helper = '''export function apiEvidence(value: unknown): boolean | undefined {
+            if (value === true || value === false) return value;
+            if (value === 0) return false;
+            if (value === 1) return true;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+              const obj = value as Record<string, unknown>;
+              for (const key of ['consta_leilao', 'consta_sinistro', 'consta_gravame', 'tem_bloqueio']) {
+                if (obj[key] !== undefined) return apiEvidence(obj[key]);
+              }
+              return apiEvidence(obj.status ?? obj.descricao);
+            }
+            if (typeof value !== 'string') return undefined;
+            const text = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/_/g, ' ').trim().toUpperCase();
+            if (/^(FALSE|NAO|0)$/.test(text) || /^(NAO CONSTA|NADA CONSTA|SEM REGISTRO|SEM RESTRICAO|SEM GRAVAME|SEM OCORRENCIA)(\b|$)/.test(text)) return false;
+            if (/^(TRUE|SIM|1)$/.test(text) || /^(CONSTA|REGISTRO ENCONTRADO|RESTRICAO ENCONTRADA|ALIENACAO FIDUCIARIA|ARRENDAMENTO MERCANTIL|RESERVA DOMINIO|LEILAO FINANCEIRA|LEILAO RECUPERADO SINISTRO|LEILAO FROTA ORGAO|PEQUENA MONTA|MEDIA MONTA|GRANDE MONTA|INDENIZACAO INTEGRAL)(\b|$)/.test(text)) return true;
+            return undefined;
+          }
+          '''
+          Path('shared/apiEvidence.ts').write_text(helper)
+          p = Path('server/providers/ApiBrasilProvider.ts')
+          s = p.read_text()
+          assert 'getMockBaseData' not in s, 'A correcao anterior ainda nao esta na main.'
+          s = "import { apiEvidence } from '../../shared/apiEvidence.ts';\n" + s
+          pattern = r'const hasTheft = Boolean\([\s\S]*?\n      \);'
+          replacements = '''const hasTheft = apiEvidence(data.rouboFurto ?? data.roubo_furto ?? data.alertaRoubo ?? data.alerta_roubo);'''
+          s, count = re.subn(pattern, lambda m: replacements, s)
+          assert count == 2, 'Revisar mapeamento de roubo/furto.'
+          a = s.index('  async getTheftStatus(')
+          b = s.index('  async getFinancing(', a)
+          part = s[a:b].replace(replacements, replacements + "\n      if (hasTheft === undefined) throw new Error('Roubo/furto nao informado ou formato nao reconhecido na resposta da APIBrasil.');")
+          s = s[:a] + part + s[b:]
+          for marker, variable, negative in [
+              ('      const rawGravame =', 'gravameObj', 'SEM_RESTRICAO'),
+              ('      const rawSinistro =', 'sinistroObj', 'SEM_REGISTRO'),
+              ('      const rawLeilao =', 'leilaoObj', 'SEM_REGISTRO')]:
+              assert s.count(marker) == 1
+              gate = f'''      const evidence = apiEvidence({variable});
+                if (evidence === undefined) throw new Error('Modulo nao informado ou formato nao reconhecido na resposta da APIBrasil.');
+                if (evidence === false) return {{ success: true, sourceId: this.id, sourceName: 'APIBrasil', latencyMs: Date.now() - start, status: 'success', data: {{ status: '{negative}', descricao: 'Sem apontamentos neste modulo, conforme resposta da APIBrasil.' }} }};
+          '''
+              s = s.replace(marker, gate + marker, 1)
+          s = s.replace('timeout = 9000;', 'timeout = 45000;')
+          old = 'const res = await fetch(targetUrl, {\n      method: \"POST\",\n      headers,'
+          assert s.count(old) == 1
+          s = s.replace(old, old + '\n      signal: AbortSignal.timeout(this.timeout),', 1)
+          p.write_text(s)
+          p = Path('server/services/QueryEngine.ts')
+          s = p.read_text().replace('const isDemo = true;', 'const isDemo = false;')
+          start = s.index('    // 7. Enrich with Free Open Public Intelligence')
+          end = s.index('    const durationMs =', start)
+          s = s[:start] + s[end:]
+          s = s.replace("import { enrichmentService } from './EnrichmentService.ts';\n", '')
+          s = s.replace("      fipe: fipeData,\n      ipva: ipvaData,\n      recall: recallData,\n      technicalSpecs,\n      mercosul: mercosulData\n", '')
+          s = s.replace('if (cached) {', "if (cached && (cached as any).dataVersion === 'apibrasil-evidence-v1') {")
+          s = s.replace('if (dbReport && dbReport.vehicle', "if (dbReport && (dbReport as any).dataVersion === 'apibrasil-evidence-v1' && dbReport.vehicle")
+          s = s.replace("    // 7. Save report and cache", "    (report as any).dataVersion = 'apibrasil-evidence-v1';\n    // 7. Save report and cache")
+          s = s.replace("queryCache.get<VehicleBasicData>(cleanPlate, 'basic')", "queryCache.get<VehicleBasicData>(cleanPlate, 'basic_evidence_v1')").replace("queryCache.set(cleanPlate, 'basic',", "queryCache.set(cleanPlate, 'basic_evidence_v1',")
+          s = s.replace("queryCache.get<TheftStatus>(cleanPlate, 'theft')", "queryCache.get<TheftStatus>(cleanPlate, 'theft_evidence_v1')").replace("queryCache.set(cleanPlate, 'theft',", "queryCache.set(cleanPlate, 'theft_evidence_v1',")
+          p.write_text(s)
+          p = Path('src/services/reportCache.ts')
+          s = p.read_text()
+          literals = re.findall(r"(['\"])(autocheck[^'\"]*)\1", s)
+          assert literals, 'Prefixo de cache nao reconhecido; revisar antes de salvar.'
+          for quote, value in set(literals):
+              s = s.replace(quote + value + quote, quote + value + '_evidence_v1' + quote)
+          p.write_text(s)
+          Path('api-evidence-test.ts').write_text("import assert from 'node:assert/strict';\nimport { apiEvidence } from './shared/apiEvidence.ts';\nassert.equal(apiEvidence('Nao consta registro de leilao para o veiculo informado'), false);\nassert.equal(apiEvidence('false'), false);\nassert.equal(apiEvidence('SEM_REGISTRO'), false);\nassert.equal(apiEvidence('MEDIA_MONTA'), true);\nassert.equal(apiEvidence(undefined), undefined);\nassert.equal(apiEvidence({}), undefined);\nassert.equal(apiEvidence({ consta_leilao: false }), false);\nassert.equal(apiEvidence('Nao identificado'), undefined);\n")
+          subprocess.run(['git', 'diff', '--check'], check=True)
+      - run: npm install --ignore-scripts --package-lock=false
+      - name: Testar mensagens negativas e campos ausentes
+        run: npx --no-install tsx api-evidence-test.ts
+      - name: Verificar build
+        run: npm run build
+      - name: Salvar correcao isolada
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add shared/apiEvidence.ts server/providers/ApiBrasilProvider.ts server/services/QueryEngine.ts src/services/reportCache.ts api-evidence-test.ts
+          git commit -m 'fix: distinguish absent data from negative findings and remove fabricated enrichment'
+          git push origin HEAD:fix/relatorio-apibrasil-real
