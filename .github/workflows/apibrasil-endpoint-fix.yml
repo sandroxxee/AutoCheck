@@ -1,0 +1,78 @@
+name: Corrigir chamada APIBrasil
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apibrasil-endpoint-fix.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apibrasil-endpoint-fix
+  cancel-in-progress: false
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/apibrasil-sem-simulacao
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Corrigir sem sobrescrever metodos restantes
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          p = Path('server/providers/ApiBrasilProvider.ts')
+          assert subprocess.check_output(['git', 'hash-object', str(p)], text=True).strip() == '7f49f401f444d91f29278427bb3c7d8e4ecf77e4', 'Arquivo mudou; revisar antes de aplicar.'
+          s = p.read_text()
+          start = s.index('  /**\n   * URLs oficiais')
+          end = s.index('  /**\n   * Executa a requisição com cache e deduplicação rigorosa', start)
+          replacement = '''  public getBaseUrl(_baseCode: '000' | '001' | '002' | '003' | '004' | '005'): string {
+            return 'https://gateway.apibrasil.io/api/v2/consulta/veiculos/credits';
+          }
+
+          // Todos os modulos reutilizam a resposta do produto contratado.
+          public async fetchBase(_baseCode: '000' | '001' | '002' | '003' | '004' | '005', plate: string, forceRefresh = false): Promise<any> {
+            return this.fetchRaw(plate, forceRefresh);
+          }
+
+          '''
+          s = s[:start] + replacement + s[end:]
+          start = s.index('    const isDemoPlate = ')
+          end = s.index('    const headers: Record<string, string> = {', start)
+          assert 'VOLKSWAGEN' in s[start:end]
+          s = s[:start] + "    if (!bearerToken) throw new Error('Token da APIBrasil não configurado.');\n\n" + s[end:]
+          start = s.index('    const targetUrl =', s.index('private async executeFetch'))
+          end = s.index('    const bearerToken =', start)
+          s = s[:start] + "    const targetUrl = this.getBaseUrl('000');\n\n" + s[end:]
+          old = 'body: JSON.stringify({ placa: cleanPlate })'
+          assert s.count(old) == 1, 'Quantidade inesperada de chamadas; revisar.'
+          s = s.replace(old, "body: JSON.stringify({ tipo: 'veiculos-total', placa: cleanPlate, homolog: process.env.APIBRASIL_HOMOLOG !== 'false' })")
+          s = s.replace('plate.replace(/[^A-Z0-9]/g, \"\").toUpperCase()', 'plate.toUpperCase().replace(/[^A-Z0-9]/g, \"\")')
+          for forbidden in ['getMockBaseData', 'isDemoPlate', 'DEMO_MODE', '/vehicles/base/']:
+              assert forbidden not in s, 'Referencia antiga restante: ' + forbidden
+          p.write_text(s)
+          subprocess.run(['git', 'diff', '--check'], check=True)
+          diff = subprocess.check_output(['git', 'diff', '--', str(p)], text=True)
+          Path('/tmp/apibrasil-endpoint.patch').write_text(diff)
+      - name: Instalar dependencias sem scripts de instalacao
+        run: npm install --ignore-scripts --package-lock=false
+      - name: Verificar build sem chamar APIBrasil
+        run: npm run build
+      - name: Salvar somente o provedor corrigido na branch de trabalho
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add server/providers/ApiBrasilProvider.ts
+          git commit -m 'fix: use unified APIBrasil credits endpoint and remove mock responses'
+          git push origin HEAD:fix/apibrasil-sem-simulacao
+      - name: Guardar patch para revisao
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apibrasil-endpoint-patch
+          path: /tmp/apibrasil-endpoint.patch
+          retention-days: 3
