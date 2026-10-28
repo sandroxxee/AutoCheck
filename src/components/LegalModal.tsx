@@ -116,7 +116,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
 
               <h4 className="text-sm font-bold text-slate-900">3. Dados Fiscais da Empresa</h4>
               <p>
-                Operação registrada sob CNPJ: 52.194.882/0001-94 • AutoCheck Brasil Tecnologia Veicular LTDA. Comprovantes e recibos de pagamento podem ser solicitados ou emitidos diretamente pela plataforma.
+                A AutoCheck Brasil Tecnologia Veicular LTDA emite comprovantes e recibos de pagamento diretamente pela plataforma, conforme a legislação aplicável.
               </p>
 
               <h4 className="text-sm font-bold text-slate-900">4. Aquisição de Créditos</h4>

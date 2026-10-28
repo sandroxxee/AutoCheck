@@ -62,7 +62,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal, onOpenS
           </div>
         </div>
 
-        {/* Disclaimer & Legal CNPJ Info */}
+        {/* Disclaimer & Legal Info */}
         <div className="pt-4 pb-2 border-b border-blue-50 text-[11px] text-slate-500 leading-relaxed">
           <p>
             <strong className="text-slate-700">Aviso Legal:</strong> Consulta de histórico veicular com dados informativos conforme bases oficiais no momento da requisição. Não substitui vistoria cautelar e não garante ausência de débitos. Consulte DETRAN para validação. Em conformidade com a LGPD (Lei 13.709/2018), não armazenamos dados de proprietários.
@@ -71,7 +71,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenLegal, onOpenS
 
         {/* Disclaimer & Copyright */}
         <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500 font-semibold">
-          <p>© {new Date().getFullYear()} AutoCheck Brasil • CNPJ: 52.194.882/0001-94 • Criado por <strong className="text-slate-900 font-extrabold">Sandro Luiz Mayer</strong>. Todos os direitos reservados.</p>
+          <p>© {new Date().getFullYear()} AutoCheck Brasil • Criado por <strong className="text-slate-900 font-extrabold">Sandro Luiz Mayer</strong>. Todos os direitos reservados.</p>
           <button
             onClick={scrollToTop}
             className="flex items-center gap-1.5 hover:text-blue-700 transition-colors cursor-pointer text-xs font-bold"

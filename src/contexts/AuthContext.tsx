@@ -36,13 +36,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const LEGACY_ADMIN_UID = 'usr_admin_sandro';
+const LEGACY_ADMIN_EMAIL = 'sandrooxxee@gmail.com';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [user, setUser] = useState<UserAccount | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(true);
 
-  // Sincroniza usuário do backend ou cria perfil para novo login
   const syncBackendUser = async (fbUser: FirebaseUser | null): Promise<UserAccount | null> => {
     if (!fbUser) {
       setUser(null);
@@ -50,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // 1. Sincroniza diretamente através do endpoint dedicado de OAuth
       const payload = {
         uid: fbUser.uid,
         name: fbUser.displayName || 'Usuário Google',
@@ -65,13 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return currentUser;
     } catch (err) {
       console.error('Aviso ao sincronizar usuário com backend:', err);
-      // Fallback seguro em caso de indisponibilidade transitória
       const fallbackUser: UserAccount = {
         id: fbUser.uid,
         email: fbUser.email || '',
         name: fbUser.displayName || 'Usuário Google',
         credits: 0,
-        role: fbUser.email === 'sandrooxxee@gmail.com' ? 'admin' : 'user',
+        role: 'user',
         plan: 'free',
         paidQueriesCount: 0,
         loyaltyQueriesCount: 0,
@@ -87,7 +87,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // 1. Testa conectividade do Firestore com tratamento seguro
     testFirestoreConnection()
       .then((connected) => {
         setIsFirestoreConnected(connected);
@@ -97,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsFirestoreConnected(false);
       });
 
-    // 2. Registra listener reativo de autenticação do Firebase Auth SDK
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
@@ -107,10 +105,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('Erro ao sincronizar usuário no listener:', e);
         }
       } else {
-        // Tenta ver se já existia sessão local de teste
         try {
           const localUser = await api.getUser();
-          setUser(localUser);
+
+          // Nunca restaura automaticamente a sessão legada de administrador.
+          if (!localUser || localUser.id === LEGACY_ADMIN_UID || localUser.email === LEGACY_ADMIN_EMAIL) {
+            api.logout();
+            setUser(null);
+          } else {
+            setUser(localUser);
+          }
         } catch {
           setUser(null);
         }
@@ -124,22 +128,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = async (): Promise<UserAccount> => {
     setIsLoading(true);
     try {
-      try {
-        const result = await signInWithPopup(auth, googleProvider);
-        const synced = await syncBackendUser(result.user);
-        if (synced) return synced;
-      } catch (popupErr: any) {
-        console.warn('Firebase popup in iframe blocked or unauthorized, falling back to authenticated developer session:', popupErr);
+      const result = await signInWithPopup(auth, googleProvider);
+      const synced = await syncBackendUser(result.user);
+      if (!synced) {
+        throw new Error('Não foi possível autenticar com o Google.');
       }
-
-      // Fallback para login direto do proprietário / desenvolvedor Google
-      const res = await api.syncOAuthUser({
-        uid: 'usr_admin_sandro',
-        name: 'Sandro (Administrador)',
-        email: 'sandrooxxee@gmail.com'
-      });
-      setUser(res.user);
-      return res.user;
+      return synced;
     } finally {
       setIsLoading(false);
     }
@@ -148,17 +142,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithEmail = async (email: string, pass: string): Promise<UserAccount> => {
     setIsLoading(true);
     try {
-      // 1. Tenta autenticar no Firebase Auth SDK
       try {
         const result = await signInWithEmailAndPassword(auth, email, pass);
         const synced = await syncBackendUser(result.user);
         if (synced) return synced;
       } catch (fbErr: any) {
-        // Se usuário não existir no Firebase Auth mas existir na API local
         console.warn('Firebase login attempt fallback to local auth:', fbErr?.message);
       }
 
-      // 2. Fallback para autenticação de API backend
       const res = await api.login({ email, password: pass });
       setUser(res.user);
       return res.user;
@@ -177,7 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }): Promise<UserAccount> => {
     setIsLoading(true);
     try {
-      // 1. Cria usuário no Firebase Auth
       let fbUser: FirebaseUser | null = null;
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
@@ -187,7 +177,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('Firebase registration error, attempting API register:', fbErr?.message);
       }
 
-      // 2. Registra perfil no banco da aplicação
       const res = await api.register(data);
       setUser(res.user);
       return res.user;
@@ -211,7 +200,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await sendPasswordResetEmail(auth, email);
     } catch {
-      // Fallback para api local de envio de código
       await api.forgotPassword(email);
     }
   };
