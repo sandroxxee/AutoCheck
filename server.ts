@@ -4,9 +4,8 @@ import path from 'path';
 import { apiRouter } from './server/api/routes.ts';
 import { initServerSentry } from './server/services/sentry.ts';
 
-// Load .env first, then fallback to .env.example for environment configuration
+// Carrega apenas o .env real. Nunca ler .env.example (contém só placeholders).
 dotenv.config();
-dotenv.config({ path: '.env.example' });
 
 // Inicializa o Sentry para rastreamento silencioso de erros e performance
 initServerSentry();
@@ -37,7 +36,9 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     service: 'AutoCheck Brasil API',
     timestamp: new Date().toISOString(),
-    demoMode: process.env.DEMO_MODE === 'true'
+    demoMode: process.env.DEMO_MODE === 'true',
+    apiBrasilTokenConfigured: Boolean((process.env.APIBRASIL_BEARER_TOKEN || '').trim()),
+    apiBrasilHomolog: process.env.APIBRASIL_HOMOLOG === 'true'
   });
 });
 
