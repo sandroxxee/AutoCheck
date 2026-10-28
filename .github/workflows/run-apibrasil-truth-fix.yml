@@ -1,0 +1,52 @@
+name: Executar correcao validada de dados APIBrasil
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/run-apibrasil-truth-fix.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: apibrasil-report-truth
+  cancel-in-progress: false
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python3 -m pip install PyYAML
+      - name: Corrigir escape e aplicar patch na branch de trabalho
+        shell: python
+        run: |
+          from pathlib import Path
+          import yaml
+          p = Path('.github/workflows/apibrasil-report-truth.yml')
+          content = p.read_text()
+          old = "helper = '''export function apiEvidence"
+          new = "helper = r'''export function apiEvidence"
+          assert content.count(old) == 1, 'Workflow mudou; revisar antes de aplicar.'
+          content = content.replace(old, new, 1)
+          workflow = yaml.safe_load(content)
+          scripts = [step['run'] for step in workflow['jobs']['patch']['steps'] if step.get('shell') == 'python']
+          assert len(scripts) == 1
+          code = compile(scripts[0], '<approved-report-patch>', 'exec')
+          exec(code, {'__name__': '__main__'})
+          p.write_text(content)
+      - run: npm install --ignore-scripts --package-lock=false
+      - name: Testar interpretacao sem consultar API paga
+        run: npx --no-install tsx api-evidence-test.ts
+      - name: Build
+        run: npm run build
+      - name: Salvar apenas apos validacao
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/apibrasil-report-truth.yml shared/apiEvidence.ts server/providers/ApiBrasilProvider.ts server/services/QueryEngine.ts src/services/reportCache.ts api-evidence-test.ts
+          git commit -m 'fix: remove fabricated enrichment and correct negative evidence parsing'
+          git push origin HEAD:fix/relatorio-apibrasil-real
