@@ -44,242 +44,20 @@ export class APIBrasilProvider implements VehicleDataProvider {
     };
   }
 
-  /**
-   * URLs oficiais de cada base de dados no gateway APIBrasil:
-   * - Base 000: Dados cadastrais básicos (BIN / Renavam)
-   * - Base 001: Busca Completa (Leilão, Histórico de Leiloeiros, Indício de Sinistro, Perda Total, Recalls)
-   * - Base 002: Débitos e Multas (IPVA, Licenciamento, DPVAT, Multas RENAINF detalhadas)
-   * - Base 003: Gravame SNG / Alienação Fiduciária
-   * - Base 004: Bloqueios Judiciais RENAJUD & Restrições Administrativas DETRAN
-   * - Base 005: Tabela FIPE & Histórico de Preços
-   */
-  public getBaseUrl(baseCode: '000' | '001' | '002' | '003' | '004' | '005'): string {
-    switch (baseCode) {
-      case '001':
-        return process.env.APIBRASIL_BASE001_URL || "https://gateway.apibrasil.io/api/v2/vehicles/base/001";
-      case '002':
-        return process.env.APIBRASIL_BASE002_URL || process.env.APIBRASIL_DEBITOS_URL || "https://gateway.apibrasil.io/api/v2/vehicles/base/002";
-      case '003':
-        return process.env.APIBRASIL_BASE003_URL || "https://gateway.apibrasil.io/api/v2/vehicles/base/003";
-      case '004':
-        return process.env.APIBRASIL_BASE004_URL || "https://gateway.apibrasil.io/api/v2/vehicles/base/004";
-      case '005':
-        return process.env.APIBRASIL_BASE005_URL || "https://gateway.apibrasil.io/api/v2/vehicles/base/005";
-      case '000':
-      default:
-        return (
-          process.env.APIBRASIL_BASE000_URL ||
-          process.env.APIBRASIL_URL ||
-          process.env.CONSULTA_VEICULAR_API_URL ||
-          process.env.VEHICLE_API_URL ||
-          "https://gateway.apibrasil.io/api/v2/vehicles/base/000"
-        );
-    }
-  }
+  public getBaseUrl(_baseCode: '000' | '001' | '002' | '003' | '004' | '005'): string {
+  return 'https://gateway.apibrasil.io/api/v2/consulta/veiculos/credits';
+}
 
-  /**
-   * Executa busca direcionada em uma base específica da APIBrasil (com cache de 24h e fallback)
-   */
-  public async fetchBase(baseCode: '000' | '001' | '002' | '003' | '004' | '005', plate: string, forceRefresh = false): Promise<any> {
-    const cleanPlate = plate.replace(/[^A-Z0-9]/g, "").toUpperCase();
-    const cacheKey = `${cleanPlate}_base_${baseCode}`;
-
-    if (!forceRefresh) {
-      const cached = APIBrasilProvider.rawCache.get(cacheKey);
-      if (cached && (Date.now() - cached.timestamp < APIBrasilProvider.CACHE_TTL_MS)) {
-        return cached.payload;
-      }
-    }
-
-    const bearerToken = (
-      process.env.APIBRASIL_BEARER_TOKEN ||
-      process.env.APIBRASIL_TOKEN ||
-      process.env.VEHICLE_API_KEY ||
-      ""
-    ).trim();
-
-    // Sempre tenta a API real se houver token configurado, sem desviar para mock por causa da placa
-    const targetUrl = this.getBaseUrl(baseCode);
-
-    try {
-      const headers: Record<string, string> = {
-        "Authorization": `Bearer ${bearerToken}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      };
-
-      const deviceToken = (process.env.APIBRASIL_DEVICE_TOKEN || process.env.DEVICE_TOKEN || "").trim();
-      if (deviceToken) {
-        headers["DeviceToken"] = deviceToken;
-        headers["Device-Token"] = deviceToken;
-      }
-
-      console.log(`[APIBrasil] Consultando Base ${baseCode} para placa ${cleanPlate} em ${targetUrl}`);
-
-      const res = await fetch(targetUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ placa: cleanPlate })
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => '');
-        console.error(`[APIBrasil] Erro Base ${baseCode} (${res.status}):`, errorText);
-        throw new Error(`APIBrasil Base ${baseCode} (${res.status}): ${errorText}`);
-      }
-
-      const json = await res.json().catch(() => null);
-      const rawRoot = json?.data || json?.dados || json?.response || json || {};
-      APIBrasilProvider.rawCache.set(cacheKey, { timestamp: Date.now(), payload: rawRoot });
-      return rawRoot;
-    } catch (err: any) {
-      console.warn(`[APIBrasil] Falha na Base ${baseCode} para ${cleanPlate}: ${err.message}. Verifique token ou saldo.`);
-      // Fallback seguro em caso de indisponibilidade ou ausência de saldo na base específica
-      const fallback = this.getMockBaseData(baseCode, cleanPlate);
-      return fallback;
-    }
-  }
-
-  /**
-   * Mock homologado para as bases específicas da APIBrasil
-   */
-  private getMockBaseData(baseCode: string, cleanPlate: string): any {
-    const isLeilaoPlate = cleanPlate === 'SAV1010' || cleanPlate === 'ROU8080' || cleanPlate.endsWith('1') || cleanPlate.endsWith('7');
-    const isSinistroPlate = cleanPlate === 'SAV1010' || cleanPlate.endsWith('9');
-    const hasDebts = cleanPlate === 'SAV1010' || cleanPlate === 'ROU8080' || cleanPlate === 'ABC1D23';
-    const hasJudicial = cleanPlate === 'XYZ9876';
-    const hasGravame = cleanPlate === 'BRA2E19' || cleanPlate === 'JIX7B91' || cleanPlate.endsWith('3');
-
-    switch (baseCode) {
-      case '001': // Busca Completa / Leilão / Sinistro / Perda Total
-        return {
-          placa: cleanPlate,
-          leilao: isLeilaoPlate ? {
-            consta_leilao: true,
-            status: 'LEILAO_RECUPERADO_SINISTRO',
-            empresa_leilao: 'COPART DO BRASIL / FREITAS LEILOEIRO OFICIAL',
-            leiloeiro: 'Freitas Leiloeiro Oficial',
-            comitente: 'PORTO SEGURO CIA DE SEGUROS GERAIS',
-            lote: 'LOTE 0482 - PÁTIO OSASCO/SP',
-            data_leilao: '18/10/2023',
-            tipo_leilao: 'Seguradora / Recuperado de Sinistro',
-            valor_arrematacao: 68500.00,
-            descricao: 'Veículo recuperado de sinistro arrematado em leilão oficial com apontamento de comitente seguradora.'
-          } : {
-            consta_leilao: false,
-            status: 'SEM_REGISTRO',
-            descricao: 'Nada consta nas principais leiloeiras do país (Sodré Santoro, Copart, Freitas, Milan, Superbid).'
-          },
-          sinistro: isSinistroPlate ? {
-            consta_sinistro: true,
-            status: 'MEDIA_MONTA',
-            tipo_dano: 'Dano estrutural na parte frontal e lateral esquerda',
-            classificacao_dano: 'Média Monta (Exige laudo CSV para desbloqueio)',
-            seguradora: 'TOKIO MARINE SEGURADORA S.A.',
-            perda_total: false,
-            data_ocorrencia: '04/08/2023'
-          } : {
-            consta_sinistro: false,
-            status: 'SEM_REGISTRO',
-            descricao: 'Nenhum histórico de sinistro estrutural de média ou grande monta registrado.'
-          }
-        };
-
-      case '002': // Débitos e Multas RENAINF
-        return {
-          placa: cleanPlate,
-          multas: hasDebts ? [
-            {
-              auto_infracao: 'PRF-BR116-98124',
-              orgao_autuador: 'POLÍCIA RODOVIÁRIA FEDERAL (PRF)',
-              descricao_infracao: 'Transitar em velocidade superior à máxima permitida em até 20%',
-              data_infracao: '14/03/2024 15:42',
-              valor: 130.16,
-              gravidade: 'Média'
-            },
-            {
-              auto_infracao: 'CET-SP-441029',
-              orgao_autuador: 'COMPANHIA DE ENGENHARIA DE TRÁFEGO (CET-SP)',
-              descricao_infracao: 'Estacionar em desacordo com a regulamentação especificada pela sinalização',
-              data_infracao: '29/05/2024 10:18',
-              valor: 195.23,
-              gravidade: 'Grave'
-            }
-          ] : [],
-          debitos: hasDebts ? {
-            ipva_atrasado: 1250.00,
-            taxa_licenciamento: 160.22,
-            dpvat: 0,
-            multas_renainf: 325.39,
-            multas_detran: 0,
-            divida_ativa: 0,
-            total_geral: 1735.61
-          } : {
-            ipva_atrasado: 0,
-            taxa_licenciamento: 0,
-            dpvat: 0,
-            multas_renainf: 0,
-            multas_detran: 0,
-            divida_ativa: 0,
-            total_geral: 0
-          }
-        };
-
-      case '003': // Gravame SNG / B3
-        return {
-          placa: cleanPlate,
-          gravame: hasGravame ? {
-            status: 'ALIENACAO_FIDUCIARIA',
-            consta_gravame: true,
-            agente_financeiro: 'BANCO SANTANDER (BRASIL) S.A.',
-            contrato: '003291823901',
-            data_inclusao: '15/05/2022',
-            uf_licenciamento: 'SP',
-            descricao: 'Alienação Fiduciária ativa registrada no Sistema Nacional de Gravames (SNG).'
-          } : {
-            status: 'SEM_RESTRICAO',
-            consta_gravame: false,
-            descricao: 'Veículo 100% quitado e sem alienação fiduciária ou arrendamento mercantil ativo.'
-          }
-        };
-
-      case '004': // Renajud e Bloqueios Judiciais
-        return {
-          placa: cleanPlate,
-          renajud: hasJudicial ? {
-            tem_bloqueio: true,
-            tipo_bloqueio: 'Penhora e Transferência',
-            tribunal: 'Tribunal Regional do Trabalho (TRT 2ª Região)',
-            processo: '0010482-19.2023.5.02.0000',
-            data_bloqueio: '12/01/2024',
-            descricao: 'Ordem judicial de bloqueio e indisponibilidade para transferência via RENAJUD.'
-          } : {
-            tem_bloqueio: false,
-            descricao: 'Nada consta no sistema RENAJUD / Conselho Nacional de Justiça.'
-          }
-        };
-
-      case '005': // FIPE & Cotações
-        return {
-          placa: cleanPlate,
-          fipe: {
-            valor: 'R$ 118.450,00',
-            codigoFipe: '005510-7',
-            mesReferencia: 'Vigente',
-            historico_desvalorizacao: '-3.2% nos últimos 12 meses'
-          }
-        };
-
-      default:
-        return {};
-    }
-  }
+// Todos os modulos reutilizam a resposta do produto contratado.
+public async fetchBase(_baseCode: '000' | '001' | '002' | '003' | '004' | '005', plate: string, forceRefresh = false): Promise<any> {
+  return this.fetchRaw(plate, forceRefresh);
+}
 
   /**
    * Executa a requisição com cache e deduplicação rigorosa
    */
   async fetchRaw(plate: string, forceRefresh = false): Promise<any> {
-    const cleanPlate = plate.replace(/[^A-Z0-9]/g, "").toUpperCase();
+    const cleanPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
     // 1. Se já está em cache e não for forceRefresh, retorna na hora sem fazer chamada externa
     if (!forceRefresh) {
@@ -312,11 +90,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
   }
 
   private async executeFetch(cleanPlate: string): Promise<any> {
-    const targetUrl =
-      process.env.CONSULTA_VEICULAR_API_URL ||
-      process.env.APIBRASIL_URL ||
-      process.env.VEHICLE_API_URL ||
-      "https://gateway.apibrasil.io/api/v2/vehicles/base/000/dados";
+    const targetUrl = this.getBaseUrl('000');
 
     const bearerToken = (
       process.env.APIBRASIL_BEARER_TOKEN ||
@@ -325,87 +99,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
       ""
     ).trim();
 
-    const isDemoPlate = ['BRA2E19', 'ABC1D23', 'XYZ9876', 'DEMO123', 'MOC1234', 'TEST999', 'ROU8080', 'SAV1010', 'KOL9876'].includes(cleanPlate);
-
-    // Em modo demo sem token ou para placas de teste homologadas, retorna dados seguros com multas/débitos
-    if (!bearerToken && (process.env.DEMO_MODE === 'true' || isDemoPlate)) {
-      const hasTheft = cleanPlate === 'ROU8080';
-      const hasDebts = cleanPlate === 'SAV1010' || cleanPlate === 'ROU8080' || cleanPlate === 'ABC1D23';
-      const hasJudicial = cleanPlate === 'XYZ9876';
-      const hasAdmin = cleanPlate === 'XYZ9876' || cleanPlate === 'SAV1010';
-
-      return {
-        marca: "VOLKSWAGEN",
-        modelo: "T-CROSS HIGHLINE 1.4 TSI FLEX 16V 5P AUT.",
-        anoFabricacao: 2022,
-        anoModelo: 2023,
-        cor: "Azul Norway",
-        combustivel: "Álcool / Gasolina (Flex)",
-        municipio: "CAMPINAS",
-        uf: "SP",
-        codigoFipe: "005510-7",
-        chassi: "9BWAG41B9NP098***",
-        rouboFurto: hasTheft,
-        bloqueio_judicial: hasJudicial,
-        restricao_judicial: hasJudicial ? 'Bloqueio Judicial RENAJUD - Penhora em Execução Trabalhista' : null,
-        bloqueio_administrativo: hasAdmin,
-        restricao_administrativa: hasAdmin ? (hasJudicial ? 'Restrição Administrativa - Falta de Transferência no Prazo (Art. 233 CTB)' : 'Restrição Administrativa - Comunicação de Venda Ativa') : null,
-        restricoes: [
-          ...(hasJudicial ? ['BLOQUEIO JUDICIAL RENAJUD - PENHORA'] : []),
-          ...(hasAdmin ? ['RESTRIÇÃO ADMINISTRATIVA ATIVA'] : [])
-        ],
-        detalhes_restricoes: [
-          ...(hasJudicial ? [{
-            tipo: 'Renajud',
-            descricao: 'Bloqueio Judicial RENAJUD - Ordem de Penhora e Indisponibilidade',
-            orgao: 'Tribunal Regional do Trabalho (TRT 2ª Região)',
-            numeroProcesso: '0010482-19.2023.5.02.0000',
-            dataRegistro: '12/01/2024'
-          }] : []),
-          ...(hasAdmin ? [{
-            tipo: 'Administrativa',
-            descricao: hasJudicial ? 'Restrição Administrativa por Não Transferência de Propriedade no Prazo (Art. 233 CTB)' : 'Comunicação de Venda Ativa com Bloqueio de Emissão de CRLV',
-            orgao: 'DETRAN-SP',
-            dataRegistro: '15/02/2024'
-          }] : [])
-        ],
-        multas: hasDebts ? [
-          {
-            auto_infracao: 'PRF-BR116-98124',
-            orgao_autuador: 'POLÍCIA RODOVIÁRIA FEDERAL (PRF)',
-            descricao_infracao: 'Transitar em velocidade superior à máxima permitida em até 20%',
-            data_infracao: '14/03/2024 15:42',
-            valor: 130.16,
-            gravidade: 'Média'
-          },
-          {
-            auto_infracao: 'CET-SP-441029',
-            orgao_autuador: 'COMPANHIA DE ENGENHARIA DE TRÁFEGO (CET-SP)',
-            descricao_infracao: 'Estacionar em desacordo com a regulamentação especificada pela sinalização',
-            data_infracao: '29/05/2024 10:18',
-            valor: 195.23,
-            gravidade: 'Grave'
-          }
-        ] : [],
-        debitos: hasDebts ? {
-          ipva_atrasado: 1250.00,
-          taxa_licenciamento: 160.22,
-          dpvat: 0,
-          multas_renainf: 325.39,
-          multas_detran: 0,
-          divida_ativa: 0,
-          total_geral: 1735.61
-        } : {
-          ipva_atrasado: 0,
-          taxa_licenciamento: 0,
-          dpvat: 0,
-          multas_renainf: 0,
-          multas_detran: 0,
-          divida_ativa: 0,
-          total_geral: 0
-        }
-      };
-    }
+    if (!bearerToken) throw new Error('Token da APIBrasil não configurado.');
 
     const headers: Record<string, string> = {
       "Authorization": `Bearer ${bearerToken}`,
@@ -422,7 +116,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
     const res = await fetch(targetUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({ placa: cleanPlate })
+      body: JSON.stringify({ tipo: 'veiculos-total', placa: cleanPlate, homolog: process.env.APIBRASIL_HOMOLOG !== 'false' })
     });
 
     const json = await res.json().catch(() => null);
@@ -563,7 +257,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
   async getFinancing(plate: string): Promise<ProviderResponse<FinancingStatus>> {
     const start = Date.now();
     try {
-      const cleanPlate = plate.replace(/[^A-Z0-9]/g, "").toUpperCase();
+      const cleanPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
       // Consulta a Base 003 (Gravame SNG / Alienação Fiduciária)
       const base003Data = await this.fetchBase('003', cleanPlate).catch(() => null);
       const rawData = await this.fetchRaw(cleanPlate).catch(() => null);
@@ -630,7 +324,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
   async getAccidentHistory(plate: string): Promise<ProviderResponse<AccidentHistory>> {
     const start = Date.now();
     try {
-      const cleanPlate = plate.replace(/[^A-Z0-9]/g, "").toUpperCase();
+      const cleanPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
       // Consulta a Base 001 (Busca Completa: Leilão, Sinistro & Perda Total)
       const base001Data = await this.fetchBase('001', cleanPlate).catch(() => null);
       const rawData = await this.fetchRaw(cleanPlate).catch(() => null);
@@ -684,7 +378,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
   async getAuctionHistory(plate: string): Promise<ProviderResponse<AuctionHistory>> {
     const start = Date.now();
     try {
-      const cleanPlate = plate.replace(/[^A-Z0-9]/g, "").toUpperCase();
+      const cleanPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
       // Consulta a Base 001 (Busca Completa / Leilão Oficial)
       const base001Data = await this.fetchBase('001', cleanPlate).catch(() => null);
       const rawData = await this.fetchRaw(cleanPlate).catch(() => null);
@@ -759,7 +453,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
   async getFines(plate: string): Promise<ProviderResponse<FinesStatus>> {
     const start = Date.now();
     try {
-      const cleanPlate = plate.replace(/[^A-Z0-9]/g, "").toUpperCase();
+      const cleanPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
       const data = await this.fetchDebitos(cleanPlate);
 
       if (!data) {
@@ -1199,7 +893,7 @@ export class APIBrasilProvider implements VehicleDataProvider {
   async getAdministrativeRestrictions(plate: string): Promise<ProviderResponse<AdministrativeRestrictions>> {
     const start = Date.now();
     try {
-      const cleanPlate = plate.replace(/[^A-Z0-9]/g, "").toUpperCase();
+      const cleanPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
       // Consulta a Base 004 (Bloqueios Judiciais RENAJUD & Restrições DETRAN)
       const base004Data = await this.fetchBase('004', cleanPlate).catch(() => null);
       const rawData = await this.fetchRaw(cleanPlate).catch(() => null);
