@@ -1,10 +1,5 @@
 import { VehicleDataProvider, ProviderResponse, CompleteVehicleData } from './VehicleDataProvider.ts';
-import { MockProvider } from './MockProvider.ts';
-import { SinespProvider } from './SinespProvider.ts';
-import { CommercialProvider } from './CommercialProvider.ts';
-import { SenatranProvider } from './SenatranProvider.ts';
 import { APIBrasilProvider } from './ApiBrasilProvider.ts';
-import { BrasilApiProvider } from './BrasilApiProvider.ts';
 import { ProviderConfig } from '../../shared/types/index.ts';
 import { captureApiException, trackApiPerformance } from '../services/sentry.ts';
 
@@ -17,76 +12,39 @@ export interface ProviderItem {
   cost: number;
 }
 
-export const providers: ProviderItem[] = [
-  {
-    id: "brasilapi",
-    instance: new BrasilApiProvider(),
-    enabled: true,
-    priority: 1, // Prioridade 1: BrasilAPI como fonte primária gratuita
-    modules: ["basic", "theft", "fipe"],
-    cost: 0.00
-  },
-  {
-    id: "apibrasil",
-    instance: new APIBrasilProvider(),
-    enabled: true,
-    priority: 2, // Prioridade 2: APIBrasil como fallback pago
-    modules: ["basic", "theft", "financing", "accident", "auction", "fines", "administrativeRestrictions"],
-    cost: 0.45
-  },
-  {
-    id: "mock",
-    instance: new MockProvider(),
-    enabled: true,
-    priority: 99,
-    modules: ["basic", "theft", "financing", "accident", "auction", "fines", "administrativeRestrictions"],
-    cost: 0
-  }
-];
+const apiBrasil = new APIBrasilProvider();
+export const providers: ProviderItem[] = [{
+  id: 'apibrasil',
+  instance: apiBrasil,
+  enabled: true,
+  priority: 1,
+  modules: [...apiBrasil.config.supports],
+  cost: apiBrasil.config.costEstimateBrl
+}];
 
 export class ProviderRegistry {
   private static instance: ProviderRegistry;
-  private providers: Map<string, VehicleDataProvider> = new Map();
-  private circuitBreakers: Map<string, { failures: number; lastFailureTime: number; isOpen: boolean }> = new Map();
+  private providers = new Map<string, VehicleDataProvider>();
+  private overrides = new Map<string, Partial<ProviderConfig>>();
+  private circuitBreakers = new Map<string, { failures: number; lastFailureTime: number; isOpen: boolean }>();
 
   private constructor() {
-    this.registerDefaultProviders();
+    for (const item of providers) this.register(item.instance);
   }
 
   public static getInstance(): ProviderRegistry {
-    if (!ProviderRegistry.instance) {
-      ProviderRegistry.instance = new ProviderRegistry();
-    }
+    if (!ProviderRegistry.instance) ProviderRegistry.instance = new ProviderRegistry();
     return ProviderRegistry.instance;
   }
 
-  private registerDefaultProviders() {
-    // Registra os provedores prioritários definidos na lista principal
-    for (const item of providers) {
-      if (item.instance.config) {
-        Object.assign(item.instance.config, {
-          id: item.id,
-          enabled: item.enabled,
-          priority: item.priority,
-          supports: item.modules,
-          costEstimateBrl: item.cost
-        });
-      }
-      this.register(item.instance);
-    }
-
-    // Provedores oficiais/comerciais complementares para fallback
-    const commercial = new CommercialProvider();
-    this.register(commercial);
-
-    const sinesp = new SinespProvider();
-    this.register(sinesp);
-
-    const senatran = new SenatranProvider();
-    this.register(senatran);
+  private configFor(provider: VehicleDataProvider): ProviderConfig {
+    return { ...provider.config, ...this.overrides.get(provider.config.id) };
   }
 
   public register(provider: VehicleDataProvider): void {
+    if (provider.config.id !== 'apibrasil') {
+      throw new Error('Somente APIBrasil pode ser registrada neste ambiente.');
+    }
     this.providers.set(provider.config.id, provider);
     if (!this.circuitBreakers.has(provider.config.id)) {
       this.circuitBreakers.set(provider.config.id, { failures: 0, lastFailureTime: 0, isOpen: false });
@@ -98,215 +56,104 @@ export class ProviderRegistry {
   }
 
   public getAllProviders(): ProviderConfig[] {
-    return Array.from(this.providers.values()).map(p => ({ ...p.config }));
+    return Array.from(this.providers.values()).map(p => this.configFor(p));
   }
 
   public updateProviderConfig(id: string, updates: Partial<ProviderConfig>): boolean {
-    const provider = this.providers.get(id);
-    if (!provider) return false;
-    Object.assign(provider.config, updates);
+    if (!this.providers.has(id)) return false;
+    const { id: ignoredId, ...safeUpdates } = updates;
+    this.overrides.set(id, { ...this.overrides.get(id), ...safeUpdates });
     return true;
   }
 
-  /**
-   * Returns list of active providers capable of providing the specified module,
-   * sorted by priority (lowest number = highest priority).
-   */
-  public getProvidersForModule(moduleName: string, preferMock: boolean = false): VehicleDataProvider[] {
-    const list: VehicleDataProvider[] = [];
-    for (const provider of this.providers.values()) {
-      if (provider.config.enabled && provider.config.supports.includes(moduleName)) {
-        // Check circuit breaker status
-        const cb = this.circuitBreakers.get(provider.config.id);
-        if (cb && cb.isOpen) {
-          // Reset after 30 seconds
-          if (Date.now() - cb.lastFailureTime > 30000) {
-            cb.isOpen = false;
-            cb.failures = 0;
-            list.push(provider);
-          }
-        } else {
-          list.push(provider);
-        }
+  // Segundo argumento mantido por compatibilidade; nunca habilita simuladores.
+  public getProvidersForModule(moduleName: string, _legacyPreferMock = false): VehicleDataProvider[] {
+    return Array.from(this.providers.values()).filter(provider => {
+      const config = this.configFor(provider);
+      if (config.id !== 'apibrasil' || !config.enabled || !config.supports.includes(moduleName)) return false;
+      const cb = this.circuitBreakers.get(config.id);
+      if (cb?.isOpen) {
+        if (Date.now() - cb.lastFailureTime <= 30000) return false;
+        cb.isOpen = false;
+        cb.failures = 0;
       }
-    }
-    return list.sort((a, b) => {
-      if (preferMock) {
-        if (a.config.id === 'mock') return -1;
-        if (b.config.id === 'mock') return 1;
-      }
-      return a.config.priority - b.config.priority;
-    });
+      return true;
+    }).sort((a, b) => this.configFor(a).priority - this.configFor(b).priority);
   }
 
-  /**
-   * Executes a module query across prioritized providers with automatic fallback,
-   * timeout handling, and failure circuit breakers.
-   */
   public async executeWithFallback<T>(
     moduleName: string,
     queryFn: (provider: VehicleDataProvider) => Promise<ProviderResponse<T>>,
-    defaultUnavailableMessage = 'Informação não disponível nesta fonte.',
-    preferMock = false
+    defaultUnavailableMessage = 'Informação não disponibilizada pela APIBrasil.',
+    _legacyPreferMock = false
   ): Promise<ProviderResponse<T>> {
-    const candidateProviders = this.getProvidersForModule(moduleName, preferMock);
-
-    if (preferMock) {
-      const mockProvider = candidateProviders.find(p => p.config.id === 'mock');
-      if (mockProvider) {
-        return queryFn(mockProvider);
-      }
-    }
-
-    if (candidateProviders.length === 0) {
-      return {
-        success: false,
-        sourceId: 'none',
-        sourceName: 'Nenhum provedor ativo',
-        latencyMs: 0,
-        status: 'unavailable',
-        errorMessage: defaultUnavailableMessage
-      };
-    }
-
-    let lastError = '';
-    let primaryConfiguredError = '';
-    let lastSourceId = 'all_failed';
-    let lastSourceName = 'Todas as fontes consultadas';
-
-    for (const provider of candidateProviders) {
+    const candidates = this.getProvidersForModule(moduleName);
+    let errorMessage = defaultUnavailableMessage;
+    for (const provider of candidates) {
+      const config = this.configFor(provider);
       const start = Date.now();
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        // Timeout wrapper with timer cleanup
-        const timeoutMs = provider.config.timeoutMs || (provider as any).timeout || 8000;
-        let timer: any;
-        const responsePromise = queryFn(provider);
-        const timeoutPromise = new Promise<any>((_, reject) => {
-          timer = setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs);
-        });
-
-        const rawResult = await Promise.race([responsePromise, timeoutPromise]).finally(() => {
-          if (timer) clearTimeout(timer);
-        }) as any;
-        if (!rawResult) continue;
-
-        // Check if provider indicated not covered
-        if (rawResult.status === 'NAO_COBERTO_PELO_PROVEDOR') {
-          continue;
+        const result = await Promise.race([
+          queryFn(provider),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Tempo de resposta da APIBrasil excedido.')), config.timeoutMs || 9000);
+          })
+        ]);
+        if (!result || typeof result !== 'object' || result.success !== true || result.status !== 'success' || result.data == null || result.sourceId !== 'apibrasil') {
+          throw new Error(result?.errorMessage || defaultUnavailableMessage);
         }
-
-        let response: ProviderResponse<T>;
-        if (typeof rawResult === 'object' && 'success' in rawResult && 'status' in rawResult) {
-          response = rawResult as ProviderResponse<T>;
-        } else {
-          let formattedData: any = rawResult;
-          if (moduleName === 'theft') {
-            const theftStr = typeof rawResult === 'string' ? rawResult : (rawResult.status || '');
-            const hasTheft = theftStr.includes('RESTRIÇÃO') || theftStr.includes('RESTRICAO');
-            formattedData = {
-              status: hasTheft ? 'RESTRICAO_ENCONTRADA' : 'NADA_CONSTA',
-              mensagem: hasTheft
-                ? 'Alerta ativo de roubo/furto detectado em base policial.'
-                : 'Nada consta nas bases policiais integradas.',
-              dataConsulta: new Date().toISOString()
-            };
-          }
-
-          response = {
-            success: true,
-            sourceId: provider.config.id,
-            sourceName: provider.config.name,
-            latencyMs: Date.now() - start,
-            status: 'success',
-            data: formattedData
-          };
-        }
-
-        if (response.success && response.data) {
-          // Reset failure count on success
-          const cb = this.circuitBreakers.get(provider.config.id);
-          if (cb) cb.failures = 0;
-          trackApiPerformance(provider.config.name, moduleName, Date.now() - start, true);
-          return response;
-        }
-
-        if (response.errorMessage) {
-          if (!primaryConfiguredError || provider.config.priority === 1) {
-            primaryConfiguredError = response.errorMessage;
-          }
-          lastError = response.errorMessage;
-          lastSourceId = provider.config.id;
-          lastSourceName = provider.config.name;
-          captureApiException(new Error(response.errorMessage), {
-            provider: provider.config.name,
-            endpoint: moduleName,
-            extras: { latencyMs: Date.now() - start }
-          });
-        }
+        const cb = this.circuitBreakers.get(config.id);
+        if (cb) { cb.failures = 0; cb.isOpen = false; }
+        trackApiPerformance(config.name, moduleName, Date.now() - start, true);
+        return result;
       } catch (err: unknown) {
-        const errorMsg = (err as Error).message;
-        if (!primaryConfiguredError || provider.config.priority === 1) {
-          primaryConfiguredError = errorMsg;
-        }
-        lastError = errorMsg;
-        lastSourceId = provider.config.id;
-        lastSourceName = provider.config.name;
-        const cb = this.circuitBreakers.get(provider.config.id);
+        errorMessage = err instanceof Error ? err.message : defaultUnavailableMessage;
+        const cb = this.circuitBreakers.get(config.id);
         if (cb) {
           cb.failures += 1;
           cb.lastFailureTime = Date.now();
-          if (cb.failures >= 5) {
-            cb.isOpen = true;
-          }
+          if (cb.failures >= 5) cb.isOpen = true;
         }
-        captureApiException(err, {
-          provider: provider.config.name,
+        captureApiException(new Error(errorMessage), {
+          provider: config.name,
           endpoint: moduleName,
-          extras: { circuitBreakerFailures: cb?.failures, latencyMs: Date.now() - start }
+          extras: { latencyMs: Date.now() - start }
         });
-        console.warn(`[AutoCheck] Provider fallback triggered for ${provider.config.name} (${moduleName}):`, (err as Error).message);
-        // Continue to next provider in priority chain
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     }
-
     return {
       success: false,
-      sourceId: lastSourceId,
-      sourceName: lastSourceName,
+      sourceId: 'apibrasil',
+      sourceName: 'APIBrasil',
       latencyMs: 0,
       status: 'unavailable',
-      errorMessage: primaryConfiguredError || lastError || defaultUnavailableMessage
+      errorMessage
     };
   }
 
   public estimateQueryCost(modules: string[]): number {
     let total = 0;
-    for (const mod of modules) {
-      const providers = this.getProvidersForModule(mod);
-      if (providers.length > 0) {
-        total += providers[0].config.costEstimateBrl;
-      }
+    for (const moduleName of modules) {
+      const provider = this.getProvidersForModule(moduleName)[0];
+      if (provider) total += this.configFor(provider).costEstimateBrl;
     }
     return Number(total.toFixed(2));
   }
 
-  /**
-   * Executa a consulta completa de veículo com fallback automático entre provedores homologados.
-   * Exemplo de uso:
-   *   const dados = await providerRegistry.consultarCompleto(placa);
-   */
-  public async consultarCompleto(plate: string, isDemo = false): Promise<ProviderResponse<CompleteVehicleData>> {
+  public async consultarCompleto(plate: string, _legacyIsDemo = false): Promise<ProviderResponse<CompleteVehicleData>> {
     return this.executeWithFallback<CompleteVehicleData>(
       'basic',
       p => p.consultarCompleto ? p.consultarCompleto(plate) : Promise.resolve({
         success: false,
-        sourceId: 'none',
-        sourceName: 'None',
+        sourceId: 'apibrasil',
+        sourceName: 'APIBrasil',
         latencyMs: 0,
         status: 'unavailable'
       }),
-      'Consulta unificada completa indisponível no momento.',
-      isDemo
+      'Consulta unificada completa indisponível na APIBrasil.'
     );
   }
 }
