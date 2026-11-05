@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import {
   User as FirebaseUser,
   onAuthStateChanged,
@@ -17,6 +17,7 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   user: UserAccount | null;
   isLoading: boolean;
+  isAuthReady: boolean;
   isFirestoreConnected: boolean;
   loginWithGoogle: () => Promise<UserAccount>;
   loginWithEmail: (email: string, pass: string) => Promise<UserAccount>;
@@ -43,13 +44,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [user, setUser] = useState<UserAccount | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const [isFirestoreConnected, setIsFirestoreConnected] = useState<boolean>(true);
+  const syncInProgress = useRef(false);
 
-  const syncBackendUser = async (fbUser: FirebaseUser | null): Promise<UserAccount | null> => {
+  const syncBackendUser = useCallback(async (fbUser: FirebaseUser | null): Promise<UserAccount | null> => {
     if (!fbUser) {
       setUser(null);
       return null;
     }
+
+    if (syncInProgress.current) {
+      return user;
+    }
+
+    syncInProgress.current = true;
 
     try {
       const payload = {
@@ -62,10 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await api.syncOAuthUser(payload);
       const currentUser = res.user;
 
+      localStorage.setItem('autocheck_user_id', currentUser.id);
+      localStorage.setItem('autocheck_user_email', currentUser.email || '');
       setUser(currentUser);
       return currentUser;
     } catch (err) {
       console.error('Aviso ao sincronizar usuário com backend:', err);
+
       const fallbackUser: UserAccount = {
         id: fbUser.uid,
         email: fbUser.email || '',
@@ -79,12 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loyaltyRewardsClaimed: 0,
         createdAt: new Date().toISOString(),
       };
+
       localStorage.setItem('autocheck_user_id', fallbackUser.id);
       localStorage.setItem('autocheck_user_email', fallbackUser.email);
       setUser(fallbackUser);
       return fallbackUser;
+    } finally {
+      syncInProgress.current = false;
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     testFirestoreConnection()
@@ -98,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
+
       if (fbUser) {
         try {
           await syncBackendUser(fbUser);
@@ -108,7 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const localUser = await api.getUser();
 
-          // Nunca restaura automaticamente a sessão legada de administrador.
           if (!localUser || localUser.id === LEGACY_ADMIN_UID || localUser.email === LEGACY_ADMIN_EMAIL) {
             api.logout();
             setUser(null);
@@ -119,11 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       }
+
       setIsLoading(false);
+      setIsAuthReady(true);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [syncBackendUser]);
 
   const loginWithGoogle = async (): Promise<UserAccount> => {
     setIsLoading(true);
@@ -220,6 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         firebaseUser,
         user,
         isLoading,
+        isAuthReady,
         isFirestoreConnected,
         loginWithGoogle,
         loginWithEmail,
