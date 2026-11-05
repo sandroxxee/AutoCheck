@@ -381,15 +381,8 @@ apiRouter.post('/admin/test-apibrasil', async (req: Request, res: Response): Pro
       return;
     }
 
-    const candidateUrls = [
-      (apiUrl || '').trim(),
-      process.env.CONSULTA_VEICULAR_API_URL,
-      process.env.APIBRASIL_URL,
-      'https://gateway.apibrasil.io/api/v2/vehicles/dados',
-      'https://gateway.apibrasil.io/api/v2/consulta/veiculos/credits',
-      'https://gateway.apibrasil.io/api/v2/vehicles/fipe',
-      'https://gateway.apibrasil.io/api/v2/vehicles/base/001/consulta'
-    ];
+    const configuredBase = (apiUrl || process.env.APIBRASIL_BASE_URL || 'https://gateway.apibrasil.io/api/v2').trim().replace(/\/$/, '');
+    const candidateUrls = [`${configuredBase}/consulta/veiculos/credits`];
     const uniqueUrls = Array.from(new Set(candidateUrls.filter(Boolean)));
 
     const headers: Record<string, string> = {
@@ -408,7 +401,7 @@ apiRouter.post('/admin/test-apibrasil', async (req: Request, res: Response): Pro
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ placa: cleanPlate, plate: cleanPlate })
+        body: JSON.stringify({ tipo: 'veiculos-total', placa: cleanPlate, homolog: process.env.APIBRASIL_HOMOLOG === 'true' })
       });
 
       const status = response.status;

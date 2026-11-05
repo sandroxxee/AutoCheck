@@ -260,7 +260,7 @@ export const api = {
 
   // 2. Get report by ID
   async getReport(id: string): Promise<ConsolidatedReport> {
-    const res = await fetch(`/api/vehicle/report/${id}`);
+    const res = await fetch(`/api/vehicle/report/${id}`, { headers: sessionHeaders() });
     const data = await res.json();
     if (!res.ok || !data.success) {
       throw new Error(data.error || 'Relatório não encontrado.');
@@ -363,7 +363,7 @@ export const api = {
 
   // 9. Admin Stats
   async getAdminStats(): Promise<{ stats: QueryStats; providers: ProviderConfig[]; auditLogs: any[] }> {
-    const res = await fetch('/api/admin/stats');
+    const res = await fetch('/api/admin/stats', { headers: sessionHeaders() });
     const data = await res.json();
     return data;
   },
@@ -372,7 +372,7 @@ export const api = {
   async updateProvider(id: string, updates: Partial<ProviderConfig>): Promise<void> {
     const res = await fetch(`/api/admin/providers/${id}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sessionHeaders(true),
       body: JSON.stringify(updates)
     });
     if (!res.ok) {
@@ -383,7 +383,8 @@ export const api = {
   // 11. Download PDF
   async downloadPdf(reportId: string, filename = 'AutoCheck-Relatorio.pdf'): Promise<void> {
     const res = await fetch(`/api/reports/${reportId}/pdf`, {
-      method: 'POST'
+      method: 'POST',
+      headers: sessionHeaders()
     });
     if (!res.ok) throw new Error('Falha ao gerar arquivo PDF.');
     const blob = await res.blob();
@@ -399,7 +400,7 @@ export const api = {
 
   // 12. Download JSON
   async downloadJson(reportId: string, filename = 'AutoCheck-Relatorio.json'): Promise<void> {
-    const res = await fetch(`/api/reports/${reportId}/json`);
+    const res = await fetch(`/api/reports/${reportId}/json`, { headers: sessionHeaders() });
     if (!res.ok) throw new Error('Falha ao exportar JSON.');
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
@@ -450,7 +451,7 @@ export const api = {
   }> {
     const res = await fetch('/api/admin/test-apibrasil', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
     return res.json();
@@ -462,7 +463,7 @@ export const api = {
   }> {
     const res = await fetch('/api/admin/set-apibrasil-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
     return res.json();
@@ -478,7 +479,7 @@ export const api = {
   async updatePixConfig(payload: { pixKey: string; pixKeyType?: string; beneficiaryName?: string; beneficiaryCity?: string }): Promise<{ success: boolean; message: string }> {
     const res = await fetch('/api/admin/pix-config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
     return res.json();
@@ -498,10 +499,14 @@ export const api = {
   }> {
     const res = await fetch('/api/payment/generate-pix', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Falha ao gerar cobrança PIX.');
+    }
+    return data;
   },
 
   async confirmPix(payload: { txId: string; reportId?: string; plate?: string; packageId?: string; amount?: number }): Promise<{
@@ -579,7 +584,7 @@ export const api = {
   async updateCompanyConfig(payload: any): Promise<any> {
     const res = await fetch('/api/admin/company-config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
     const data = await res.json();

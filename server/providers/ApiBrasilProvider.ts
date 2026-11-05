@@ -12,6 +12,7 @@ import {
   OwnerStatus,
   ProviderConfig
 } from '../../shared/types/index.ts';
+import { ApiBrasil } from 'apigratis-sdk-nodejs';
 
 // NUNCA chama do frontend. Só no server /api/vehicle/check
 export class APIBrasilProvider implements VehicleDataProvider {
@@ -90,8 +91,6 @@ public async fetchBase(_baseCode: '000' | '001' | '002' | '003' | '004' | '005',
   }
 
   private async executeFetch(cleanPlate: string): Promise<any> {
-    const targetUrl = this.getBaseUrl('000');
-
     const bearerToken = (
       process.env.APIBRASIL_BEARER_TOKEN ||
       process.env.APIBRASIL_TOKEN ||
@@ -101,34 +100,24 @@ public async fetchBase(_baseCode: '000' | '001' | '002' | '003' | '004' | '005',
 
     if (!bearerToken) throw new Error('Token da APIBrasil não configurado.');
 
-    const headers: Record<string, string> = {
-      "Authorization": `Bearer ${bearerToken}`,
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    };
-
-    const deviceToken = (process.env.APIBRASIL_DEVICE_TOKEN || process.env.DEVICE_TOKEN || "").trim();
-    if (deviceToken) {
-      headers["DeviceToken"] = deviceToken;
-      headers["Device-Token"] = deviceToken;
-    }
-
-    const res = await fetch(targetUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ tipo: 'veiculos-total', placa: cleanPlate, homolog: process.env.APIBRASIL_HOMOLOG !== 'false' })
+    // SDK oficial: POST /api/v2/consulta/veiculos/credits.
+    // Esta é a rota por saldo documentada pela APIBrasil; não usa DeviceToken.
+    const client = new ApiBrasil({
+      bearerToken,
+      baseURL: (process.env.APIBRASIL_BASE_URL || 'https://gateway.apibrasil.io/api/v2').trim(),
+      timeout: this.timeout,
+      retry: { retries: 1 }
+    });
+    const json: any = await client.consulta.veiculos({
+      tipo: 'veiculos-total',
+      placa: cleanPlate,
+      // Só ativa homologação quando explicitamente solicitado; ausência não pode
+      // mandar consultas de produção para um ambiente de teste vazio.
+      homolog: process.env.APIBRASIL_HOMOLOG === 'true'
     });
 
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      const msg = json?.message || json?.error || `HTTP ${res.status}`;
-      throw new Error(`APIBrasil (${res.status}): ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
-    }
-
-    if (json?.error && !json?.data && !json?.dados) {
-      const msg = json?.message || 'Erro na resposta da APIBrasil';
-      throw new Error(`APIBrasil: ${msg}`);
+    if (json?.error === true) {
+      throw new Error(`APIBrasil: ${json.message || 'consulta recusada pelo gateway'}`);
     }
 
     const rawRoot = json?.data || json?.dados || json?.response || json || {};

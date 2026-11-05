@@ -41,6 +41,17 @@ NENHUM valor real de produção está registrado neste repositório.
 - **Como obter:** Painel da APIBrasil em https://apibrasil.io
 - **Status:** 🟡 Chave Bearer de autenticação
 
+### `APIBRASIL_BASE_URL`
+- **Valor padrão:** `https://gateway.apibrasil.io/api/v2`
+- **Onde é usada:** SDK oficial `apigratis-sdk-nodejs`
+- **Endpoint chamado:** `/consulta/veiculos/credits`
+- **Status:** 🟢 Pode permanecer com o valor padrão
+
+### `APIBRASIL_HOMOLOG`
+- **Valores:** `true` somente para homologação; `false` para produção
+- **Onde é usada:** campo `homolog` da consulta `veiculos-total`
+- **Status:** 🟡 Deve ser explicitamente `false` em produção
+
 ### `CONSULTA_VEICULAR_API_URL`
 - **Obrigatória:** Sim (ou fallback padrão `https://gateway.apibrasil.io/api/v2/vehicles/dados`)
 - **Onde é usada:** `server/providers/ApiBrasilProvider.ts`
@@ -48,10 +59,10 @@ NENHUM valor real de produção está registrado neste repositório.
 - **Status:** 🟢 URL do endpoint de consulta de veículos
 
 ### `APIBRASIL_DEVICE_TOKEN`
-- **Obrigatória:** Sim (fornecido junto à credencial da APIBrasil)
+- **Obrigatória:** Não para as rotas por crédito de consulta veicular
 - **Onde é usada:** `server/providers/ApiBrasilProvider.ts`
 - **Provider:** APIBrasil
-- **Status:** 🟡 Token de dispositivo / autorização do cliente
+- **Status:** ⚪ Usado por produtos device-based, como WhatsApp; não é enviado na consulta veicular por crédito
 
 ### `VEHICLE_API_KEY`
 - **Obrigatória:** Sim (quando `DEMO_MODE=false`)
