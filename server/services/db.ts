@@ -57,6 +57,19 @@ export interface ServiceReceipt {
   legalNotice: string;
 }
 
+export interface PixOrder {
+  txId: string;
+  userId: string;
+  amount: number;
+  packageId?: string;
+  reportId?: string;
+  plate?: string;
+  gatewayPaymentId?: string;
+  status: 'pending' | 'paid' | 'expired';
+  createdAt: string;
+  paidAt?: string;
+}
+
 class DatabaseService {
   private static instance: DatabaseService;
 
@@ -67,6 +80,7 @@ class DatabaseService {
   private transactions: CreditTransaction[] = [];
   private recoveryCodes: Map<string, { code: string; expiresAt: number }> = new Map();
   private supportTickets: SupportTicket[] = [];
+  private pixOrders: Map<string, PixOrder> = new Map();
   private companySettings: CompanySettings = {
     companyName: process.env.COMPANY_NAME || 'AUTOCHECK BRASIL TECNOLOGIA E SERVICOS DE INFORMACAO LTDA',
     tradeName: 'AutoCheck Brasil',
@@ -80,11 +94,11 @@ class DatabaseService {
   };
 
   private pixSettings: PixSettings = {
-    pixKey: process.env.PIX_KEY || '09512592967',
-    pixKeyType: 'cpf',
+    pixKey: process.env.PIX_KEY || process.env.PIX_CHAVE_PADRAO || 'sandrooxxee@gmail.com',
+    pixKeyType: 'email',
     beneficiaryName: process.env.PIX_RECEIVER_NAME || 'SANDRO (AUTOCHECK BRASIL)',
     beneficiaryCity: process.env.PIX_CITY || 'SAO PAULO',
-    autoApprove: true,
+    autoApprove: process.env.PIX_AUTO_APPROVE === 'true' && process.env.DEMO_MODE === 'true',
     cnpj: process.env.COMPANY_CNPJ || '53.842.190/0001-44',
     companyName: process.env.COMPANY_NAME || 'AUTOCHECK BRASIL TECNOLOGIA E SERVICOS DE INFORMACAO LTDA'
   };
@@ -126,6 +140,41 @@ class DatabaseService {
 
   private hashPassword(password: string): string {
     return crypto.createHash('sha256').update(password + '_autocheck_salt_2026').digest('hex');
+  }
+
+  private getSessionSecret(): string {
+    return process.env.SESSION_SECRET || 'autocheck-development-secret-change-me';
+  }
+
+  public createSessionToken(userId: string): string {
+    const payload = Buffer.from(JSON.stringify({
+      sub: userId,
+      exp: Date.now() + 7 * 24 * 60 * 60 * 1000
+    })).toString('base64url');
+    const signature = crypto.createHmac('sha256', this.getSessionSecret()).update(payload).digest('base64url');
+    return `ac_${payload}.${signature}`;
+  }
+
+  public verifySessionToken(token: string): string | undefined {
+    if (!token.startsWith('ac_')) return undefined;
+    const value = token.slice(3);
+    const [payload, signature] = value.split('.');
+    if (!payload || !signature) return undefined;
+
+    const expected = crypto.createHmac('sha256', this.getSessionSecret()).update(payload).digest('base64url');
+    const expectedBuffer = Buffer.from(expected);
+    const signatureBuffer = Buffer.from(signature);
+    if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
+      return undefined;
+    }
+
+    try {
+      const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { sub?: string; exp?: number };
+      if (!decoded.sub || !decoded.exp || Date.now() > decoded.exp) return undefined;
+      return decoded.sub;
+    } catch {
+      return undefined;
+    }
   }
 
   private seedDefaultTickets() {
@@ -216,7 +265,7 @@ class DatabaseService {
 
     this.logAction('USER_REGISTERED', 'NO_PLATE', `Novo usuário cadastrado (${newUser.role})`, id);
 
-    return { user: newUser, token: 'tok_' + id + '_' + Date.now() };
+    return { user: newUser, token: this.createSessionToken(id) };
   }
 
   public authenticateUser(email: string, password: string): { user: UserAccount; token: string } {
@@ -251,7 +300,7 @@ class DatabaseService {
     user.lastLogin = new Date().toISOString();
     this.saveUser(user);
 
-    return { user, token: 'tok_' + user.id + '_' + Date.now() };
+    return { user, token: this.createSessionToken(user.id) };
   }
 
   public generateRecoveryCode(email: string): string {
@@ -347,7 +396,7 @@ class DatabaseService {
       this.logAction('USER_OAUTH_REGISTERED', 'NO_PLATE', `Novo usuário registrado via Google OAuth`, id);
     }
 
-    return { user, token: 'tok_' + user.id + '_' + Date.now() };
+    return { user, token: this.createSessionToken(user.id) };
   }
 
   public getUser(id: string): UserAccount | undefined {
@@ -501,6 +550,30 @@ class DatabaseService {
 
   public getAllUsers(): UserAccount[] {
     return Array.from(this.users.values());
+  }
+
+  // --- PIX Orders ---
+  public createPixOrder(order: Omit<PixOrder, 'status' | 'createdAt'>): PixOrder {
+    const created: PixOrder = {
+      ...order,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    this.pixOrders.set(created.txId, created);
+    return created;
+  }
+
+  public getPixOrder(txId: string): PixOrder | undefined {
+    return this.pixOrders.get(txId);
+  }
+
+  public markPixOrderPaid(txId: string): PixOrder | undefined {
+    const order = this.pixOrders.get(txId);
+    if (!order) return undefined;
+    order.status = 'paid';
+    order.paidAt = new Date().toISOString();
+    this.pixOrders.set(txId, order);
+    return order;
   }
 
   // --- Reports & Queries ---

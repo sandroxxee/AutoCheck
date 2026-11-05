@@ -44,7 +44,7 @@ Todas as rotas de API utilizam blindagem com autenticação por cabeçalhos, lim
 | Rota | Método | Descrição | Nível de Acesso |
 | :--- | :---: | :--- | :---: |
 | `/api/vehicle/check` | `POST` | Execução de consulta pericial consolidada por placa | Autenticado / Créditos |
-| `/api/vehicle/report/:id` | `GET` | Recuperação de laudo já emitido para auditoria | Livre com ID válido |
+| `/api/vehicle/report/:id` | `GET` | Recuperação de laudo já emitido para auditoria | Dono autenticado ou Admin |
 | `/api/user/loyalty` | `GET` | Verificação do saldo e progresso do programa de fidelidade | Autenticado |
 | `/api/user/profile` | `GET` | Dados cadastrais e consumo de vistorias | Autenticado |
 | `/api/user/transactions` | `GET` | Extrato transacional detalhado | Autenticado |

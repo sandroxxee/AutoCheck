@@ -30,6 +30,22 @@ async function safeRequest(url: string, options: RequestInit): Promise<any> {
   }
 }
 
+function sessionHeaders(contentType = false): Record<string, string> {
+  const token = localStorage.getItem('autocheck_session_token');
+  return {
+    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+}
+
+function persistSession(data: { token?: string; user?: UserAccount }): void {
+  if (data.token) localStorage.setItem('autocheck_session_token', data.token);
+  if (data.user?.id) {
+    localStorage.setItem('autocheck_user_id', data.user.id);
+    localStorage.setItem('autocheck_user_email', data.user.email);
+  }
+}
+
 export const api = {
   // --- Auth & Session ---
   async syncOAuthUser(payload: { uid: string; email: string; name?: string; phone?: string }): Promise<{ success: boolean; user: UserAccount; token: string; message: string }> {
@@ -38,10 +54,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (data.user?.id) {
-      localStorage.setItem('autocheck_user_id', data.user.id);
-      localStorage.setItem('autocheck_user_email', data.user.email);
-    }
+    persistSession(data);
     return data;
   },
 
@@ -51,10 +64,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (data.user?.id) {
-      localStorage.setItem('autocheck_user_id', data.user.id);
-      localStorage.setItem('autocheck_user_email', data.user.email);
-    }
+    persistSession(data);
     return data;
   },
 
@@ -64,10 +74,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (data.user?.id) {
-      localStorage.setItem('autocheck_user_id', data.user.id);
-      localStorage.setItem('autocheck_user_email', data.user.email);
-    }
+    persistSession(data);
     return data;
   },
 
@@ -91,10 +98,7 @@ export const api = {
     const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch('/api/user/profile', {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(userId ? { 'x-user-id': userId } : {})
-      },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
     const data = await res.json();
@@ -108,10 +112,7 @@ export const api = {
     const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch('/api/user/change-password', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(userId ? { 'x-user-id': userId } : {})
-      },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
     const data = await res.json();
@@ -127,7 +128,7 @@ export const api = {
       return [];
     }
     const res = await fetch('/api/user/transactions', {
-      headers: { 'x-user-id': userId }
+      headers: sessionHeaders()
     });
     const data = await res.json();
     return data.transactions || [];
@@ -137,10 +138,7 @@ export const api = {
     const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch('/api/user/delete-account', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(userId ? { 'x-user-id': userId } : {})
-      },
+      headers: sessionHeaders(true),
       body: JSON.stringify({ userId })
     });
     const data = await res.json();
@@ -165,6 +163,7 @@ export const api = {
   logout(): void {
     localStorage.removeItem('autocheck_user_id');
     localStorage.removeItem('autocheck_user_email');
+    localStorage.removeItem('autocheck_session_token');
   },
 
   // 1. Check vehicle with local storage caching layer (prevents redundant API calls)
@@ -200,10 +199,7 @@ export const api = {
     const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch('/api/vehicle/check', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(userId ? { 'x-user-id': userId } : {})
-      },
+      headers: sessionHeaders(true),
       body: JSON.stringify({ plate: cleanPlate, queryType })
     });
 
@@ -256,7 +252,7 @@ export const api = {
       return { eligible: false, paidQueriesCount: 0, loyaltyQueriesCount: 0, rewardsAvailable: 0, progressPercentage: 0 };
     }
     const res = await fetch('/api/user/loyalty', {
-      headers: { 'x-user-id': userId }
+      headers: sessionHeaders()
     });
     const data = await res.json();
     return data.loyalty || { eligible: false, paidQueriesCount: 0, loyaltyQueriesCount: 0, rewardsAvailable: 0, progressPercentage: 0 };
@@ -280,10 +276,7 @@ export const api = {
     const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch(`/api/vehicle/report/${id}/upgrade`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(userId ? { 'x-user-id': userId } : {})
-      }
+      headers: sessionHeaders(true)
     });
     const data = await res.json();
     if (!res.ok || !data.success) {
@@ -309,7 +302,7 @@ export const api = {
       return null;
     }
     const res = await fetch('/api/user/me', {
-      headers: { 'x-user-id': userId }
+      headers: sessionHeaders()
     });
     if (!res.ok) {
       return null;
@@ -325,7 +318,7 @@ export const api = {
       return [];
     }
     const res = await fetch('/api/user/queries', {
-      headers: { 'x-user-id': userId }
+      headers: sessionHeaders()
     });
     const data = await res.json();
     return data.queries || [];
@@ -333,13 +326,10 @@ export const api = {
 
   // 7. Buy credits (mock checkout)
   async buyCredits(packageId: string, paymentMethod: string): Promise<{ success: boolean; message: string; credits: number }> {
-    const userId = localStorage.getItem('autocheck_user_id') || 'user_demo';
+    const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch('/api/user/credits/buy', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-id': userId
-      },
+      headers: sessionHeaders(true),
       body: JSON.stringify({ packageId, paymentMethod })
     });
     const data = await res.json();
@@ -351,13 +341,10 @@ export const api = {
 
   // 7.1 Claim Sandbox Test Credits (Free for development testing)
   async claimSandboxCredits(): Promise<{ success: boolean; message: string; credits: number }> {
-    const userId = localStorage.getItem('autocheck_user_id') || 'usr_admin_sandro';
+    const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch('/api/user/credits/sandbox-bonus', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-id': userId
-      },
+      headers: sessionHeaders(true),
       body: JSON.stringify({ userId })
     });
     const data = await res.json();
@@ -497,7 +484,7 @@ export const api = {
     return res.json();
   },
 
-  async generatePix(payload: { amount: number; description?: string; reportId?: string; packageId?: string }): Promise<{
+  async generatePix(payload: { amount?: number; description?: string; reportId?: string; packageId?: string; plate?: string }): Promise<{
     success: boolean;
     pix: {
       copyPaste: string;
@@ -525,10 +512,7 @@ export const api = {
     const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch('/api/payment/confirm-pix', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(userId ? { 'x-user-id': userId } : {})
-      },
+      headers: sessionHeaders(true),
       body: JSON.stringify(payload)
     });
     return res.json();
@@ -606,9 +590,7 @@ export const api = {
   async getTransactionReceipt(txId: string): Promise<any> {
     const userId = localStorage.getItem('autocheck_user_id');
     const res = await fetch(`/api/transactions/${encodeURIComponent(txId)}/receipt`, {
-      headers: {
-        ...(userId ? { 'x-user-id': userId } : {})
-      }
+      headers: sessionHeaders()
     });
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.error || 'Falha ao obter recibo da transação.');
@@ -643,4 +625,3 @@ export const api = {
     return data;
   }
 };
-

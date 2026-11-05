@@ -102,6 +102,11 @@ NENHUM valor real de produção está registrado neste repositório.
 
 ## 4. Pagamentos & Gateways (Pix / Cartão)
 
+### `PIX_KEY` ou `PIX_CHAVE_PADRAO`
+- **Valor padrão configurado no código:** `sandrooxxee@gmail.com`
+- **Onde é usada:** geração do BR Code PIX estático
+- **Observação:** a chave estática permite o pagamento, mas a liberação automática exige um gateway com token configurado.
+
 ### `MERCADOPAGO_ACCESS_TOKEN` ou `ASAAS_API_KEY`
 - **Obrigatória:** Sim (para geração de QR Code Pix e cobrança automática real)
 - **Onde é usada:** Rotas de checkout e emissão de Pix
@@ -116,3 +121,13 @@ NENHUM valor real de produção está registrado neste repositório.
 - **Onde é usada:** Endpoint `/api/webhook/payment`
 - **Provider:** Gateway de Pagamento
 - **Status:** 🟡 Necessária
+
+---
+
+## 5. Sessão e segurança da aplicação
+
+### `SESSION_SECRET`
+- **Obrigatória:** Sim em produção
+- **Onde é usada:** assinatura e validação dos tokens Bearer de sessão
+- **Como obter:** gerar um segredo aleatório forte, por exemplo `openssl rand -hex 32`
+- **Status:** 🟡 Necessária configurar na Vercel; há apenas fallback local para desenvolvimento.

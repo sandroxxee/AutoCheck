@@ -96,12 +96,16 @@ export const CreditPurchaseModal: React.FC<CreditPurchaseModalProps> = ({
     triggerHaptic('medium');
     try {
       setLoading(true);
-      await api.confirmPix({
+      const result = await api.confirmPix({
         txId: pixData?.txId || 'tx_' + Date.now(),
         packageId: selectedPkg.id,
         reportId: targetReportId,
         amount: selectedPkg.priceBrl
       });
+
+      if (!result.success) {
+        throw new Error(result.message || 'Pagamento ainda não identificado. Aguarde alguns segundos e tente verificar novamente.');
+      }
 
       triggerHaptic('success');
       setCompleted(true);
@@ -234,7 +238,7 @@ export const CreditPurchaseModal: React.FC<CreditPurchaseModalProps> = ({
                   className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Simular Pagamento Aprovado (Instantâneo)</span>
+                  <span>Verificar pagamento PIX</span>
                 </button>
               </div>
 

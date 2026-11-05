@@ -88,9 +88,9 @@ export const PlateCheckoutPixModal: React.FC<PlateCheckoutPixModalProps> = ({
       setErrorMessage(null);
 
       const res = await api.generatePix({
-        amount: 49.90,
         description: `AutoCheck Consulta de Histórico Placa ${cleanPlate}`,
-        packageId: 'pack_complete'
+        packageId: 'pack_complete',
+        plate: cleanPlate
       });
 
       if (res.success && res.pix) {

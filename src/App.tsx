@@ -22,7 +22,6 @@ const QueryErrorModal = lazy(() => import('./components/QueryErrorModal.tsx').th
 const NoCreditsModal = lazy(() => import('./components/NoCreditsModal.tsx').then(m => ({ default: m.NoCreditsModal })));
 
 import { ConsolidatedReport, UserAccount, CreditPackage, VehicleFreePreview } from './types/index.ts';
-import { isDemoTestPlate } from '../shared/schemas/vehicle.ts';
 import { api } from './services/api.ts';
 import { getCachedReport } from './services/reportCache.ts';
 import { saveVehicleReportToFirestore, getUserVehicleReportsFromFirestore } from './services/firebase.ts';
@@ -132,17 +131,14 @@ export function App() {
 
     const userCredits = user?.credits ?? 0;
     const isUnlimitedAdmin = user?.role === 'admin';
-    const isDemoPlate = isDemoTestPlate(cleanPlate);
 
-    if (!user && !isDemoPlate) {
+    if (!user) {
       setPendingQuery({ plate: cleanPlate, queryType: 'complete' });
       setAuthModalState({ isOpen: true, mode: 'login' });
       return;
     }
 
-    // Verificação de créditos ao consultar placa após estar logado:
-    // Placas de teste (BRA2E19, ABC1D23, SAV1010, ROU8080) são 100% gratuitas para desenvolvimento!
-    if (!isDemoPlate && !isUnlimitedAdmin && userCredits < 1 && !skipPreview) {
+    if (!isUnlimitedAdmin && userCredits < 1 && !skipPreview) {
       triggerHaptic('warning');
       setPendingQuery({ plate: cleanPlate, queryType });
       setNoCreditsModalState({
@@ -153,8 +149,7 @@ export function App() {
       return;
     }
 
-    // Direct Full Report Flow: If demo plate, user has credits, is admin, or already unlocked via PIX
-    if (isDemoPlate || skipPreview || isUnlimitedAdmin || userCredits >= 1) {
+    if (skipPreview || isUnlimitedAdmin || userCredits >= 1) {
       try {
         setQueryingPlate(cleanPlate);
         setIsQuerying(true);
