@@ -13,6 +13,7 @@ import { validateAndNormalizePlate, isDemoTestPlate } from '../../shared/schemas
 import { triggerHaptic } from '../utils/haptics.ts';
 import { BrazilFlagSvg, MercosulLogoSvg } from './MercosulPlate.tsx';
 import { UserAccount } from '../types/index.ts';
+import { useAuth } from '../contexts/AuthContext.tsx';
 
 interface PlateInputProps {
   onSearch: (plate: string, queryType?: 'basic' | 'complete') => void;
@@ -31,6 +32,8 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
   user = null,
   onOpenCreditModal
 }) => {
+  const { isAuthReady } = useAuth();
+  const isWaitingAuth = !isAuthReady;
   const [inputVal, setInputVal] = useState(initialValue);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedType] = useState<'basic' | 'complete'>(defaultQueryType);
@@ -47,9 +50,8 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading) return;
+    if (isLoading || isWaitingAuth) return;
 
-    // Rate limiting check using localStorage timestamps (3 second interval)
     const lastSearchTimeKey = 'autocheck_last_search_timestamp';
     const lastSearchTime = Number(localStorage.getItem(lastSearchTimeKey) || '0');
     const now = Date.now();
@@ -74,10 +76,8 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
       return;
     }
 
-    // Save current timestamp for rate limiting cooldown
     localStorage.setItem(lastSearchTimeKey, String(now));
 
-    // Check credits if logged in and not admin (Demo plates are always free for development and testing)
     const isDemo = isDemoTestPlate(validation.cleanPlate);
     if (!isDemo && user && user.role !== 'admin' && (user.credits ?? 0) < 1) {
       triggerHaptic('warning');
@@ -89,7 +89,7 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
     triggerHaptic('medium');
     setErrorMsg(null);
     onSearch(validation.cleanPlate, selectedType);
-  }, [isLoading, cleanChars, validation, onSearch, selectedType, user]);
+  }, [isLoading, isWaitingAuth, cleanChars, validation, onSearch, selectedType, user]);
 
   const handleClear = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -107,7 +107,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
   return (
     <div className="w-full max-w-xl mx-auto">
       <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
-        {/* Logged in User Credits Status Bar - Always Visible */}
         {user && (
           <div
             id="plate-input-credits-badge"
@@ -171,7 +170,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
           </div>
         )}
 
-        {/* Real Brazilian Plate Frame on sleek card backing with realistic 3D elevation */}
         <div
           onClick={() => inputRef.current?.focus()}
           className="relative rounded-3xl bg-slate-200 border-2 border-slate-700/80 plate-3d-shadow overflow-hidden transition-all duration-300 hover:border-blue-600 cursor-text group"
@@ -179,15 +177,11 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
             boxShadow: '0 18px 45px -8px rgba(15, 23, 42, 0.35), inset 0 2px 3px rgba(255, 255, 255, 0.9), inset 0 -2px 3px rgba(0, 0, 0, 0.35)'
           }}
         >
-          {/* Inner stamped metal bevel */}
           <div className="absolute inset-[1.5px] rounded-[inherit] border border-white/70 pointer-events-none z-20" />
 
-          {/* Top Blue Mercosul Strip */}
           <div className="h-11 sm:h-12 bg-gradient-to-b from-[#0038A8] via-[#002776] to-[#001D5C] px-3.5 sm:px-6 flex items-center justify-between text-white select-none relative z-10 shadow-[0_2px_4px_rgba(0,0,0,0.35)]">
-            {/* Subtle Light Glare across top banner */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
 
-            {/* Left: Mercosul Official Emblem */}
             <div className="flex items-center gap-2 z-10">
               <MercosulLogoSvg className="w-5 h-5 sm:w-6 sm:h-6" />
               <span className="text-[10px] font-mono font-black tracking-widest text-blue-200/90 hidden xs:inline sm:inline">
@@ -195,7 +189,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
               </span>
             </div>
 
-            {/* Center: BRASIL */}
             <div className="z-10 flex items-center justify-center">
               <span
                 className="text-xs sm:text-sm font-black tracking-[0.32em] uppercase text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
@@ -205,7 +198,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
               </span>
             </div>
 
-            {/* Right: High-Fidelity Brazilian Flag & Security QR Code */}
             <div className="flex items-center gap-2 z-10">
               <div 
                 className="w-4 h-4 sm:w-4.5 sm:h-4.5 bg-slate-900/80 rounded-[1px] p-[1.5px] flex items-center justify-center opacity-75 shrink-0 border border-slate-700/40"
@@ -227,14 +219,12 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
             </div>
           </div>
 
-          {/* Stamped Plate Number Surface with Metallic Gray Gradients & FE-Schrift */}
           <div 
             className="px-3 py-6 sm:py-8 flex flex-col items-center justify-center relative overflow-hidden"
             style={{
               background: 'linear-gradient(175deg, #FFFFFF 0%, #F1F5F9 22%, #E2E8F0 48%, #CBD5E1 52%, #E2E8F0 75%, #FFFFFF 100%)'
             }}
           >
-            {/* Metallic Brushed Texture Overlay */}
             <div 
               className="absolute inset-0 opacity-40 pointer-events-none"
               style={{
@@ -242,7 +232,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
               }}
             />
 
-            {/* Security Hologram Watermarks */}
             <div className="absolute inset-0 flex items-center justify-around pointer-events-none opacity-20 select-none z-0">
               <div className="font-black font-mono text-[9px] sm:text-[11px] tracking-tighter text-slate-500 rotate-[-25deg]">
                 BR ★ MERCOSUL
@@ -255,7 +244,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
               </div>
             </div>
 
-            {/* 3D Chrome Fastening Rivets */}
             <div className="absolute top-3 left-3 sm:left-5 w-3 h-3 rounded-full bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600 border border-slate-400/90 shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),0_1px_2px_rgba(0,0,0,0.45)] flex items-center justify-center z-10">
               <div className="w-[60%] h-[1.5px] bg-slate-700/80 rounded-full rotate-45" />
             </div>
@@ -272,7 +260,7 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
                 onChange={handleInputChange}
                 placeholder="BRA2E19"
                 maxLength={8}
-                disabled={isLoading}
+                disabled={isLoading || isWaitingAuth}
                 autoComplete="off"
                 spellCheck={false}
                 inputMode="text"
@@ -287,8 +275,7 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
                 }}
               />
 
-              {/* Finger-friendly Quick Clear Button */}
-              {inputVal.length > 0 && !isLoading && (
+              {inputVal.length > 0 && !isLoading && !isWaitingAuth && (
                 <button
                   type="button"
                   onClick={handleClear}
@@ -300,7 +287,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
               )}
             </div>
 
-            {/* Plate Format Badge */}
             <div className="mt-2.5 sm:mt-3 flex items-center gap-2 z-10">
               {validation.valid ? (
                 <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-emerald-800 bg-emerald-50/90 px-3.5 py-1 rounded-full border border-emerald-300 shadow-xs">
@@ -322,7 +308,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
           </div>
         </div>
 
-        {/* Modalidade de Consulta - Relatório Consolidado R$ 49,90 */}
         <div className="p-2.5 glass-subtle rounded-2xl border border-blue-200/90 text-xs sm:text-sm font-bold max-w-lg mx-auto shadow-xs flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl icon-3d-blue flex items-center justify-center text-white flex-shrink-0">
@@ -340,7 +325,6 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
           </div>
         </div>
 
-        {/* Error Alert Box */}
         {errorMsg && (
           <div className="p-3.5 sm:p-4 rounded-2xl bg-red-50/95 border border-red-200 text-red-800 text-xs sm:text-sm flex items-center gap-3 shadow-md">
             <div className="w-6 h-6 rounded-full icon-3d-red flex items-center justify-center text-white flex-shrink-0">
@@ -350,17 +334,16 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
           </div>
         )}
 
-        {/* Primary Action Button - 3D Realistic High Touch Hitbox */}
         <button
           id="hero-search-submit-btn"
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || isWaitingAuth}
           className="w-full min-h-[58px] sm:min-h-[62px] py-4 px-6 rounded-2xl font-black text-base sm:text-lg flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed btn-3d-primary text-white"
         >
-          {isLoading ? (
+          {isLoading || isWaitingAuth ? (
             <>
               <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-white" />
-              <span>Cruzando bases governamentais em tempo real...</span>
+              <span>{isWaitingAuth ? 'Restaurando sessão...' : 'Cruzando bases governamentais em tempo real...'}</span>
             </>
           ) : (
             <>
@@ -373,15 +356,14 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
           )}
         </button>
 
-        {/* Security / Trust Guarantees */}
         <div className="pt-1.5 flex flex-wrap items-center justify-center gap-x-6 gap-y-1.5 text-xs text-slate-600 font-semibold">
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1">
             <div className="w-4 h-4 rounded-full icon-3d-blue flex items-center justify-center text-white">
               <Lock className="w-2.5 h-2.5" />
             </div>
             Sem necessidade de RENAVAM ou CPF
           </span>
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1">
             <div className="w-4 h-4 rounded-full icon-3d-green flex items-center justify-center text-white">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
             </div>
@@ -397,4 +379,3 @@ const PlateInputComponent: React.FC<PlateInputProps> = ({
 };
 
 export const PlateInput = React.memo(PlateInputComponent);
-
